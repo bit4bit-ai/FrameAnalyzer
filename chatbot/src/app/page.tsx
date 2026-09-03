@@ -24,44 +24,55 @@ export default function Home() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gemini-3.6-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash-lite');
+  const [isLoaded, setIsLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load from local storage
+  // Load from local storage safely on mount
   useEffect(() => {
-    const savedSessions = localStorage.getItem('chatSessions');
-    const savedActiveId = localStorage.getItem('activeSessionId');
-    const savedModel = localStorage.getItem('selectedModel');
-    
-    let loadedSessions: ChatSession[] = [];
-    if (savedSessions) {
-      try {
-        loadedSessions = JSON.parse(savedSessions);
-        setSessions(loadedSessions);
-      } catch (e) {
-        console.error("Failed to parse saved sessions", e);
+    try {
+      const savedSessions = localStorage.getItem('chatSessions');
+      const savedActiveId = localStorage.getItem('activeSessionId');
+      const savedModel = localStorage.getItem('selectedModel');
+      
+      let loadedSessions: ChatSession[] = [];
+      if (savedSessions) {
+        try {
+          loadedSessions = JSON.parse(savedSessions);
+          if (Array.isArray(loadedSessions)) {
+            setSessions(loadedSessions);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved sessions", e);
+        }
       }
-    }
 
-    if (savedActiveId) {
-      setActiveSessionId(savedActiveId);
-      const current = loadedSessions.find(s => s.id === savedActiveId);
-      if (current?.model && MODELS.some(m => m.id === current.model)) {
-        setSelectedModel(current.model);
-        return;
+      if (savedActiveId && loadedSessions.some(s => s.id === savedActiveId)) {
+        setActiveSessionId(savedActiveId);
+        const current = loadedSessions.find(s => s.id === savedActiveId);
+        if (current?.model && MODELS.some(m => m.id === current.model)) {
+          setSelectedModel(current.model);
+        }
+      } else if (loadedSessions.length > 0) {
+        setActiveSessionId(loadedSessions[0].id);
+      } else {
+        setActiveSessionId(null);
       }
-    }
 
-    if (savedModel) {
-      const isValid = MODELS.some(m => m.id === savedModel);
-      setSelectedModel(isValid ? savedModel : 'gemini-3.6-flash');
+      if (savedModel && MODELS.some(m => m.id === savedModel)) {
+        setSelectedModel(savedModel);
+      }
+    } catch (e) {
+      console.warn("Could not read from localStorage", e);
+    } finally {
+      setIsLoaded(true);
     }
   }, []);
 
-  // Save to local storage
+  // Save to local storage only AFTER initial load completes
   useEffect(() => {
+    if (!isLoaded) return;
     try {
-      // Strip large base64 data to prevent QuotaExceededError
       const safeSessions = sessions.map(s => ({
         ...s,
         messages: s.messages.map(m => ({
@@ -80,7 +91,7 @@ export default function Home() {
     } catch (e) {
       console.warn("Could not save to localStorage", e);
     }
-  }, [sessions, activeSessionId, selectedModel]);
+  }, [sessions, activeSessionId, selectedModel, isLoaded]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || null;
   const messages = activeSession?.messages || [];
@@ -92,20 +103,6 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
-
-  const createNewSession = (initialMessage?: Message, title?: string): ChatSession => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: title || 'New Conversation',
-      messages: initialMessage ? [initialMessage] : [],
-      interactionId: null,
-      model: selectedModel,
-      updatedAt: Date.now()
-    };
-    setSessions(prev => [...prev, newSession]);
-    setActiveSessionId(newSession.id);
-    return newSession;
-  };
 
   const handleNewChat = () => {
     setActiveSessionId(null);
@@ -122,7 +119,7 @@ export default function Home() {
   const handleModelChange = (newModel: string) => {
     setSelectedModel(newModel);
     if (activeSessionId) {
-      updateActiveSession({ model: newModel });
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, model: newModel } : s));
     }
   };
 
@@ -133,31 +130,49 @@ export default function Home() {
     }
   };
 
-  const updateActiveSession = (updates: Partial<ChatSession>) => {
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
-        return { ...s, ...updates, updatedAt: Date.now() };
-      }
-      return s;
-    }));
-  };
-
   const handleSendMessage = async (text: string, attachments?: Attachment[]) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: text, attachments };
+    const userMsgId = `${Date.now()}-user`;
+    const userMessage: Message = { id: userMsgId, role: 'user', content: text, attachments };
     
-    let currentSessionId = activeSessionId;
-    let currentInteractionId = activeSession?.interactionId || null;
+    // Check if current active session exists
+    let targetSessionId = activeSessionId;
+    const existingSession = sessions.find(s => s.id === targetSessionId);
+    let previousInteractionId: string | null = null;
+    let conversationHistory: { role: 'user' | 'ai'; content: string }[] = [];
 
-    // If no active session, create one with an auto-generated title
-    if (!currentSessionId) {
-      const title = text.length > 20 ? text.substring(0, 20) + '...' : text;
-      const newSession = createNewSession(userMessage, title);
-      currentSessionId = newSession.id;
+    if (!targetSessionId || !existingSession) {
+      // Create new session immediately with the user message
+      const newSessionId = `${Date.now()}`;
+      targetSessionId = newSessionId;
+      const title = text.length > 24 ? text.substring(0, 24) + '...' : text;
+      const newSession: ChatSession = {
+        id: newSessionId,
+        title: title || 'New Conversation',
+        messages: [userMessage],
+        interactionId: null,
+        model: selectedModel,
+        updatedAt: Date.now()
+      };
+      
+      setSessions(prev => [newSession, ...prev]);
+      setActiveSessionId(newSessionId);
     } else {
-      // Append to existing
-      updateActiveSession({ messages: [...messages, userMessage] });
+      // Append user message immediately to existing session
+      previousInteractionId = existingSession.interactionId || null;
+      conversationHistory = existingSession.messages.map(m => ({ role: m.role, content: m.content }));
+      
+      setSessions(prev => prev.map(s => {
+        if (s.id === targetSessionId) {
+          return {
+            ...s,
+            messages: [...s.messages, userMessage],
+            updatedAt: Date.now()
+          };
+        }
+        return s;
+      }));
     }
 
     setIsLoading(true);
@@ -170,17 +185,22 @@ export default function Home() {
           message: text,
           attachments: attachments,
           model: selectedModel,
-          previous_interaction_id: currentInteractionId,
-          history: messages.map(m => ({ role: m.role, content: m.content })),
+          previous_interaction_id: previousInteractionId,
+          history: conversationHistory,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        const aiMessage: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: data.response };
+        const aiMessage: Message = { 
+          id: `${Date.now()}-ai`, 
+          role: 'ai', 
+          content: data.response || 'No response returned.' 
+        };
+        
         setSessions(prev => prev.map(s => {
-          if (s.id === currentSessionId) {
+          if (s.id === targetSessionId) {
             return {
               ...s,
               messages: [...s.messages, aiMessage],
@@ -192,25 +212,36 @@ export default function Home() {
           return s;
         }));
       } else {
-        console.error('Error:', data.error, data.details);
-        const errorMessage: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: `Error: ${data.details || data.error || 'Unknown error'}` };
+        console.error('API error response:', data);
+        const errorContent = data.details || data.error || 'Unknown error occurred while contacting AI.';
+        const errorMessage: Message = { 
+          id: `${Date.now()}-err`, 
+          role: 'ai', 
+          content: `⚠️ Error: ${errorContent}` 
+        };
+        
         setSessions(prev => prev.map(s => {
-          if (s.id === currentSessionId) {
+          if (s.id === targetSessionId) {
             return {
               ...s,
               messages: [...s.messages, errorMessage],
-              interactionId: null, // Reset interactionId so subsequent turns can re-establish state
+              interactionId: null,
               updatedAt: Date.now()
             };
           }
           return s;
         }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fetch error:', error);
-      const errorMessage: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: 'Network error. Please check your connection.' };
+      const errorMessage: Message = { 
+        id: `${Date.now()}-err`, 
+        role: 'ai', 
+        content: `⚠️ Network error: Could not reach server (${error?.message || 'Check connection'}).` 
+      };
+      
       setSessions(prev => prev.map(s => {
-        if (s.id === currentSessionId) {
+        if (s.id === targetSessionId) {
           return { ...s, messages: [...s.messages, errorMessage], interactionId: null, updatedAt: Date.now() };
         }
         return s;
@@ -219,6 +250,7 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className={styles.appContainer}>

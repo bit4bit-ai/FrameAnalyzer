@@ -1,7 +1,26 @@
 const { GoogleGenAI } = require('@google/genai');
-require('dotenv').config({ path: '.env.local' });
+const fs = require('fs');
+const path = require('path');
 
-const ai = new GoogleGenAI({});
+for (const envFile of ['.env', '.env.local']) {
+  const envPath = path.join(__dirname, envFile);
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf-8').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const [k, ...rest] = trimmed.split('=');
+        const v = rest.join('=').replace(/^["']|["']$/g, '');
+        if (!process.env[k]) {
+          process.env[k] = v;
+        }
+      }
+    }
+  }
+}
+
+const apiKey = process.env.api_key || process.env.GEMINI_API_KEY;
+const ai = new GoogleGenAI(apiKey ? { apiKey } : {});
 
 const models = [
   'gemini-3.6-flash',

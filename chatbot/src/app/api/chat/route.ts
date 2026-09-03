@@ -1,16 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({});
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const getApiKey = () => {
+  return process.env.api_key || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+};
+
+function extractOutputText(data: any): string {
+  if (data?.output_text) return data.output_text;
+  if (Array.isArray(data?.steps)) {
+    const textParts: string[] = [];
+    for (const step of data.steps) {
+      if (step.type === 'model_output' && Array.isArray(step.content)) {
+        for (const item of step.content) {
+          if (item.text) {
+            textParts.push(item.text);
+          }
+        }
+      }
+    }
+    if (textParts.length > 0) return textParts.join('\n');
+  }
+  return 'No response generated.';
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Configuration Error', details: 'Gemini API key is not configured. Please set api_key or GEMINI_API_KEY in your .env file.' },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
-    const { message, history = [], model = 'gemini-3.6-flash', attachments = [] } = body;
+    const { message, history = [], model = 'gemini-3.5-flash-lite', attachments = [], previous_interaction_id } = body;
 
     let inputContent: any = message;
 
-    if (attachments.length > 0) {
+    if (attachments && attachments.length > 0) {
       inputContent = [];
       if (message) {
         inputContent.push({ type: 'text', text: message });
@@ -31,8 +61,6 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-
-    let interaction;
 
     // Helper to build multi-turn steps from history
     const buildHistorySteps = () => {
@@ -66,48 +94,90 @@ export async function POST(req: NextRequest) {
       return steps;
     };
 
-    if (body.previous_interaction_id) {
-      try {
-        // Try continuing existing interaction session
-        interaction = await ai.interactions.create({
-          model: model,
-          input: inputContent,
-          previous_interaction_id: body.previous_interaction_id,
-        });
-      } catch (err: any) {
-        console.warn('Continuing interaction failed (e.g. cross-model switch or expired session). Falling back to history steps:', err.message);
-        // Fallback: If continuing failed, start a fresh interaction with conversation history
-        const fallbackSteps = buildHistorySteps();
-        interaction = await ai.interactions.create({
-          model: model,
-          input: fallbackSteps,
-        });
+    const callApi = async (selectedModel: string) => {
+      const reqPayload: any = {
+        model: selectedModel,
+      };
+
+      if (previous_interaction_id) {
+        reqPayload.previous_interaction_id = previous_interaction_id;
+        reqPayload.input = inputContent;
+      } else if (history && history.length > 0) {
+        reqPayload.input = buildHistorySteps();
+      } else {
+        reqPayload.input = inputContent;
       }
-    } else if (history && history.length > 0) {
-      // No previous interaction ID, but history exists (e.g. fresh session or reconstructed)
-      const steps = buildHistorySteps();
-      interaction = await ai.interactions.create({
-        model: model,
-        input: steps,
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqPayload)
       });
-    } else {
-      // First turn of a conversation
-      interaction = await ai.interactions.create({
-        model: model,
-        input: inputContent,
-      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        const error = new Error(data.error?.message || `API request failed with status ${res.status}`);
+        (error as any).status = res.status;
+        (error as any).code = data.error?.code;
+        throw error;
+      }
+
+      return data;
+    };
+
+    let resultData: any;
+    let note = '';
+
+    try {
+      resultData = await callApi(model);
+    } catch (err: any) {
+      // If previous_interaction_id failed (session expired or invalid), retry fresh with history
+      if (previous_interaction_id) {
+        console.warn('Continuing interaction failed, retrying with fresh history');
+        const fallbackPayload: any = {
+          model: model,
+          input: buildHistorySteps()
+        };
+        const retryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fallbackPayload)
+        });
+        const retryData = await retryRes.json();
+        if (retryRes.ok && !retryData.error) {
+          resultData = retryData;
+        } else {
+          // If rate limited on gemini-3.6-flash, fallback to gemini-3.5-flash-lite
+          if ((retryData.error?.code === 'too_many_requests' || retryRes.status === 429) && model === 'gemini-3.6-flash') {
+            console.warn('Quota limit on gemini-3.6-flash, falling back to gemini-3.5-flash-lite');
+            resultData = await callApi('gemini-3.5-flash-lite');
+            note = '> ℹ️ *Gemini 3.6 Flash free tier rate limit reached — served with Gemini 3.5 Flash-Lite.*\n\n';
+          } else {
+            throw new Error(retryData.error?.message || 'API request failed');
+          }
+        }
+      } else if ((err.status === 429 || err.code === 'too_many_requests' || err.message?.includes('Quota exceeded')) && model === 'gemini-3.6-flash') {
+        // Fallback from gemini-3.6-flash to gemini-3.5-flash-lite
+        console.warn('Quota limit on gemini-3.6-flash, falling back to gemini-3.5-flash-lite');
+        resultData = await callApi('gemini-3.5-flash-lite');
+        note = '> ℹ️ *Gemini 3.6 Flash free tier rate limit reached — served with Gemini 3.5 Flash-Lite.*\n\n';
+      } else {
+        throw err;
+      }
     }
 
+    const responseText = note + extractOutputText(resultData);
+
     return NextResponse.json({
-      response: interaction.output_text,
-      interaction_id: interaction.id,
+      response: responseText,
+      interaction_id: resultData.id,
     });
   } catch (error: any) {
     console.error('Error calling Gemini API:', error);
     
     let userFriendlyMessage = error.message || 'Unknown error occurred';
     if (userFriendlyMessage.includes('Quota exceeded') || error.status === 429) {
-      userFriendlyMessage = 'Quota limit exceeded for this model. Please select a Flash model (e.g. Gemini 3.6 Flash) or wait before trying again.';
+      userFriendlyMessage = 'Quota limit reached for this model on free tier. Please select Gemini 3.5 Flash-Lite or Gemini 3.1 Flash-Lite from the model selector.';
     }
 
     return NextResponse.json(
@@ -116,4 +186,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
