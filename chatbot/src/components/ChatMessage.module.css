@@ -1,0 +1,100 @@
+.messageWrapper {
+  display: flex;
+  width: 100%;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.userWrapper {
+  justify-content: flex-end;
+}
+
+.aiWrapper {
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  color: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 16px 20px;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+.bubble p {
+  margin-bottom: 8px;
+}
+
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.userBubble {
+  background: var(--user-bubble);
+  color: white;
+  border-radius: 16px;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.2);
+}
+
+.aiBubble {
+  background: var(--ai-bubble);
+  color: var(--text-primary);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+}
+
+.attachmentGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.attachmentItem {
+  max-width: 100%;
+}
+
+.attachedImage {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.attachedDoc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.attachedDoc .docName {
+  font-size: 13px;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

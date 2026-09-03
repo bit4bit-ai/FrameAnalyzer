@@ -1,0 +1,119 @@
+.sidebar {
+  width: 280px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  flex-shrink: 0;
+}
+
+.newChatBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.2);
+}
+
+.newChatBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+}
+
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.sessionList::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.sessionItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.sessionItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sessionItem.active {
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
+  color: var(--text-primary);
+}
+
+.sessionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.sessionTitle {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modelBadge {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.65;
+}
+
+.deleteBtn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  border-radius: 4px;
+}
+
+.sessionItem:hover .deleteBtn {
+  opacity: 0.5;
+}
+
+.deleteBtn:hover {
+  opacity: 1 !important;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.emptyText {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-top: 20px;
+}
