@@ -1,0 +1,6 @@
+{
+  "name": "Video Frame Analyst",
+  "description": "Recursively scans directories for videos, extracts key frames to disk, and analyzes them with Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
