@@ -815,8 +815,8 @@ const App: React.FC = () => {
                   )}
                </div>
                
-               {/* Stats: Found, Done, Errors, and Quota / Tokens */}
-               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto">
+               {/* Stats: Found, Done, Errors, and Requests */}
+               <div className="grid grid-cols-4 gap-2 mt-auto">
                   <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 text-center">
                     <div className="text-2xl font-bold text-slate-200">{totalCount}</div>
                     <div className="text-[10px] uppercase tracking-wider text-slate-500">Found</div>
@@ -831,15 +831,14 @@ const App: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setShowQuotaModal(true)}
-                    className="bg-slate-900/50 hover:bg-slate-800/80 p-3 rounded-lg border border-purple-800/40 hover:border-purple-600/60 text-center transition-all cursor-pointer group flex flex-col items-center justify-center"
-                    title="Click to view full Quota and Token Metrics"
+                    className="bg-slate-900/50 hover:bg-slate-800/80 p-3 rounded-lg border border-purple-800/40 hover:border-purple-600/60 text-center transition-all cursor-pointer group flex flex-col items-center justify-center overflow-hidden"
+                    title={`Processed ${quotaData.requestsToday} API requests today (${batchTotalTokens > 0 ? `${(batchTotalTokens / 1000).toFixed(1)}k tokens` : '0 tokens'}). Click for detailed Quota & Token breakdown.`}
                   >
-                    <div className="text-2xl font-bold text-purple-400 group-hover:text-purple-300 flex items-center justify-center gap-1">
-                      <span>{batchTotalTokens > 0 ? `${(batchTotalTokens / 1000).toFixed(1)}k` : `${quotaData.requestsToday}`}</span>
-                      <Activity className="w-3.5 h-3.5 text-purple-400 opacity-70" />
+                    <div className="text-2xl font-bold text-purple-400 group-hover:text-purple-300 truncate max-w-full">
+                      {quotaData.requestsToday}
                     </div>
-                    <div className="text-[10px] uppercase tracking-wider text-purple-400/80 group-hover:text-purple-300">
-                      {batchTotalTokens > 0 ? 'Batch Tokens' : 'Quota Today'}
+                    <div className="text-[10px] uppercase tracking-wider text-purple-400/80 group-hover:text-purple-300 truncate max-w-full">
+                      Requests
                     </div>
                   </button>
                </div>
