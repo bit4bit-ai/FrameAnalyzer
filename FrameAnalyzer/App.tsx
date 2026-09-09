@@ -601,19 +601,19 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Instant switch recommendation if on low-quota model */}
-                {settings.model !== 'gemini-2.5-flash' && (
+                {settings.model !== 'gemini-3.5-flash-lite' && (
                   <div className="w-full p-3.5 bg-blue-950/40 border border-blue-500/40 rounded-xl text-left space-y-2">
                     <p className="text-xs text-blue-200 font-medium leading-relaxed">
-                      💡 <strong>Need to process more videos today?</strong> Switch to <strong>Gemini 2.5 Flash</strong>, which has <strong>1,500 free requests per day</strong>!
+                      💡 <strong>Need to process more videos today?</strong> Switch to <strong>Gemini 3.5 Flash-Lite</strong>, which has <strong>1,500 free requests per day</strong>!
                     </p>
                     <button
                       onClick={async () => {
-                        await handleSaveSettings(settings.apiKey, 'gemini-2.5-flash');
+                        await handleSaveSettings(settings.apiKey, 'gemini-3.5-flash-lite');
                         setShowAbortModal(false);
                       }}
                       className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      Switch to Gemini 2.5 Flash (1,500 RPD)
+                      Switch to Gemini 3.5 Flash-Lite (1,500 RPD)
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>

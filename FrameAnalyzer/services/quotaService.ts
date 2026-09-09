@@ -22,34 +22,34 @@ export interface ModelQuotaSpec {
 }
 
 export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
-  'gemini-2.5-flash': {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+  'gemini-3.5-flash-lite': {
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash-Lite',
+    rpm: 15,
+    rpdFreeTier: 1500,
+    inputPricePerMillion: 0.15,
+    outputPricePerMillion: 0.60,
+    tierNote: 'Recommended High-Volume Tier: Ultra-fast and reliable for batches of 100+ videos.',
+    isRecommendedForVolume: true,
+  },
+  'gemini-3.5-flash': {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
     rpm: 15,
     rpdFreeTier: 1500,
     inputPricePerMillion: 0.30,
     outputPricePerMillion: 1.20,
-    tierNote: 'High-Volume Free Tier: up to 1,500 requests/day. Best for batches of 100+ videos.',
-    isRecommendedForVolume: true,
-  },
-  'gemini-2.5-flash-lite': {
-    id: 'gemini-2.5-flash-lite',
-    name: 'Gemini 2.5 Flash-Lite',
-    rpm: 15,
-    rpdFreeTier: 1500,
-    inputPricePerMillion: 0.10,
-    outputPricePerMillion: 0.40,
-    tierNote: 'Ultra-Fast & Budget Tier: 1,500 requests/day. Lowest cost model ($0.10 / 1M tokens).',
+    tierNote: 'High-throughput stock footage reasoning with foundational multimodal speed.',
     isRecommendedForVolume: true,
   },
   'gemini-3.6-flash': {
     id: 'gemini-3.6-flash',
     name: 'Gemini 3.6 Flash',
     rpm: 15,
-    rpdFreeTier: 50,
+    rpdFreeTier: 20,
     inputPricePerMillion: 0.30,
     outputPricePerMillion: 1.20,
-    tierNote: 'Gemini 3 Preview: Deep reasoning, but limited to ~50-100 free requests/day by Google.',
+    tierNote: 'Deep reasoning model. Google enforces a strict ceiling of ~20 free requests/day.',
   },
   'gemini-3.7-flash': {
     id: 'gemini-3.7-flash',
@@ -58,7 +58,7 @@ export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
     rpdFreeTier: 50,
     inputPricePerMillion: 0.30,
     outputPricePerMillion: 1.20,
-    tierNote: 'Gemini 3.7 Preview: Advanced visual analysis, but tight free-tier daily cap (~50-100 RPD).',
+    tierNote: 'Gemini 3.7 Preview: Advanced visual analysis, tight free-tier daily cap (~50 RPD).',
   },
   'gemini-3.8-flash': {
     id: 'gemini-3.8-flash',
@@ -67,16 +67,7 @@ export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
     rpdFreeTier: 50,
     inputPricePerMillion: 0.30,
     outputPricePerMillion: 1.20,
-    tierNote: 'Gemini 3.8 Preview: State-of-the-art vision, limited to ~50 free requests/day on Free Tier.',
-  },
-  'gemini-3-flash-preview': {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash Preview',
-    rpm: 15,
-    rpdFreeTier: 50,
-    inputPricePerMillion: 0.30,
-    outputPricePerMillion: 1.20,
-    tierNote: 'Experimental Preview: Strict ~50 daily requests limit on Google AI Studio Free Tier.',
+    tierNote: 'Gemini 3.8 Preview: State-of-the-art vision, limited on Free Tier.',
   },
 };
 
