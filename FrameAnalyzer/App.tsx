@@ -13,6 +13,7 @@ import { DEFAULT_PROMPT } from './constants';
 import VideoCard from './components/VideoCard';
 import KeywordManager from './components/KeywordManager';
 import SettingsModal from './components/SettingsModal';
+import QuotaModal from './components/QuotaModal';
 import { loadKeywords, saveKeywords } from './services/keywordService';
 import { loadSettings, saveSettings, AppSettings, DEFAULT_MODEL } from './services/settingsService';
 import { 
@@ -22,6 +23,13 @@ import {
   verifyDirectoryPermission, 
   requestDirectoryPermission 
 } from './services/jobPersistence';
+import { 
+  loadStoredQuota, 
+  recordApiCallUsage, 
+  getTimeUntilPacificMidnight, 
+  StoredDailyQuota, 
+  getModelSpec 
+} from './services/quotaService';
 import { 
   FolderOpen, 
   Play, 
@@ -33,7 +41,11 @@ import {
   Info, 
   Download, 
   Trash2, 
-  RotateCcw 
+  RotateCcw,
+  Activity,
+  Clock,
+  BarChart3,
+  ArrowRight
 } from 'lucide-react';
 
 // Free Tier Limit: 15 Requests Per Minute (RPM).
@@ -60,6 +72,8 @@ const App: React.FC = () => {
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [showAbortModal, setShowAbortModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaData, setQuotaData] = useState<StoredDailyQuota>(loadStoredQuota);
   
   // Settings State (API Key & Model)
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -361,7 +375,7 @@ const App: React.FC = () => {
             
             await new Promise(r => setTimeout(r, 50));
 
-            const analysis = await generateVideoAnalysis(
+            const analysisResult = await generateVideoAnalysis(
               promptRef.current, 
               screenshots, 
               processedDescriptions, 
@@ -369,11 +383,21 @@ const App: React.FC = () => {
               settingsRef.current.apiKey,
               settingsRef.current.model
             );
+
+            const analysis = analysisResult.text;
+            const usage = analysisResult.usage;
+
+            // Track daily quota and token consumption
+            const updatedQuota = recordApiCallUsage(settingsRef.current.model, usage);
+            setQuotaData(updatedQuota);
             
             // Success!
             processedDescriptions.push(analysis);
             lastApiCallTime = Date.now();
-            updateStatus(ProcessingStatus.COMPLETED, { analysisResult: analysis });
+            updateStatus(ProcessingStatus.COMPLETED, { 
+              analysisResult: analysis,
+              usage: usage,
+            });
             isVideoComplete = true; 
 
             // Auto-save analysis.txt to disk if handle exists
@@ -433,7 +457,7 @@ const App: React.FC = () => {
     isProcessingRef.current = false;
     
     if (abortDueToQuota) {
-        setStatusMessage("⛔ Process Aborted: Daily/Billing Limit Reached.");
+        setStatusMessage("⛔ Process Aborted: Daily Limit Reached.");
         setShowAbortModal(true);
     } else {
         setStatusMessage(shouldStopRef.current ? "Stopped by user." : "Queue processing finished.");
@@ -541,9 +565,14 @@ const App: React.FC = () => {
   const errorCount = videoFiles.filter(v => v.status === ProcessingStatus.ERROR).length;
   const totalCount = videoFiles.length;
 
+  const batchTotalTokens = videoFiles.reduce((sum, v) => sum + (v.usage?.totalTokens || 0), 0);
+  const modelSpec = getModelSpec(settings.model);
+  const timeUntilReset = getTimeUntilPacificMidnight();
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-6 flex flex-col items-center">
-      {/* Abort Modal */}
+      
+      {/* Quota Exceeded Abort Modal */}
       {showAbortModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-slate-800 border border-red-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -552,24 +581,62 @@ const App: React.FC = () => {
                    <Ban className="w-10 h-10" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white">Quota Exceeded</h2>
+                  <h2 className="text-xl font-bold text-white">Daily Quota Exceeded</h2>
                   <p className="text-slate-300 text-sm leading-relaxed">
-                    The Gemini API returned a <strong>RESOURCE_EXHAUSTED</strong> error. 
-                    This typically means the daily limit for the free tier has been reached.
+                    Google returned a <strong>RESOURCE_EXHAUSTED</strong> error. You have processed <strong>{quotaData.requestsToday} requests today</strong>, reaching the Free Tier daily limit for <code className="bg-slate-900 px-1.5 py-0.5 rounded text-red-300 font-mono text-xs">{settings.model}</code>.
                   </p>
                 </div>
                 
-                <div className="text-xs text-slate-400 bg-slate-900/50 p-3 rounded-lg w-full flex items-start gap-2 text-left">
-                   <Info className="w-4 h-4 shrink-0 text-slate-500 mt-0.5" />
-                   <span>The queue has been stopped to prevent further errors. Please try again later (usually resets in 24h).</span>
+                <div className="text-xs text-slate-300 bg-slate-900/70 p-3.5 rounded-xl w-full flex flex-col gap-2 text-left border border-slate-700/60">
+                   <div className="flex items-center justify-between text-amber-300 font-medium">
+                     <span className="flex items-center gap-1.5">
+                       <Clock className="w-3.5 h-3.5" />
+                       Quota Reset Countdown:
+                     </span>
+                     <span className="font-mono font-bold">{timeUntilReset.formatted}</span>
+                   </div>
+                   <span className="text-slate-400 text-[11px] leading-relaxed">
+                     Google daily limits reset at Midnight Pacific Time (00:00 PT / 09:00 CET).
+                   </span>
                 </div>
 
-                <button 
-                  onClick={() => setShowAbortModal(false)}
-                  className="mt-2 w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium transition-all shadow-lg shadow-red-900/20 active:scale-95"
-                >
-                  Close
-                </button>
+                {/* Instant switch recommendation if on low-quota model */}
+                {settings.model !== 'gemini-2.5-flash' && (
+                  <div className="w-full p-3.5 bg-blue-950/40 border border-blue-500/40 rounded-xl text-left space-y-2">
+                    <p className="text-xs text-blue-200 font-medium leading-relaxed">
+                      💡 <strong>Need to process more videos today?</strong> Switch to <strong>Gemini 2.5 Flash</strong>, which has <strong>1,500 free requests per day</strong>!
+                    </p>
+                    <button
+                      onClick={async () => {
+                        await handleSaveSettings(settings.apiKey, 'gemini-2.5-flash');
+                        setShowAbortModal(false);
+                      }}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      Switch to Gemini 2.5 Flash (1,500 RPD)
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex gap-2 w-full pt-1">
+                  <button 
+                    onClick={() => {
+                      setShowAbortModal(false);
+                      setShowQuotaModal(true);
+                    }}
+                    className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium text-xs transition-colors cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    Inspect Quota
+                  </button>
+                  <button 
+                    onClick={() => setShowAbortModal(false)}
+                    className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium text-xs transition-all shadow-lg shadow-red-900/20 active:scale-95 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
              </div>
           </div>
         </div>
@@ -599,10 +666,24 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {/* Quota & Token Badge Button */}
+          <button
+            onClick={() => setShowQuotaModal(true)}
+            className="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 hover:text-purple-300 rounded-full border border-slate-700 hover:border-purple-500/50 transition-all shadow-sm flex items-center gap-2 text-xs font-medium cursor-pointer"
+            title="View API Quota, Daily Request Limits & Token Consumption"
+          >
+            <Activity className="w-4 h-4 text-purple-400" />
+            <span className="hidden sm:inline">Quota:</span>
+            <span className="font-mono text-purple-300 font-bold">
+              {quotaData.requestsToday} / ~{modelSpec.rpdFreeTier}
+            </span>
+          </button>
+
+          {/* Settings Button */}
           <button
             onClick={() => setShowSettingsModal(true)}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full border border-slate-700 hover:border-slate-600 transition-all shadow-sm flex items-center justify-center group"
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full border border-slate-700 hover:border-slate-600 transition-all shadow-sm flex items-center justify-center group cursor-pointer"
             title="Settings"
             aria-label="Settings"
           >
@@ -730,8 +811,8 @@ const App: React.FC = () => {
                   )}
                </div>
                
-               {/* Stats */}
-               <div className="grid grid-cols-3 gap-2 mt-auto">
+               {/* Stats: Found, Done, Errors, and Quota / Tokens */}
+               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-auto">
                   <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 text-center">
                     <div className="text-2xl font-bold text-slate-200">{totalCount}</div>
                     <div className="text-[10px] uppercase tracking-wider text-slate-500">Found</div>
@@ -744,6 +825,19 @@ const App: React.FC = () => {
                     <div className="text-2xl font-bold text-red-400">{errorCount}</div>
                     <div className="text-[10px] uppercase tracking-wider text-slate-500">Errors</div>
                   </div>
+                  <button
+                    onClick={() => setShowQuotaModal(true)}
+                    className="bg-slate-900/50 hover:bg-slate-800/80 p-3 rounded-lg border border-purple-800/40 hover:border-purple-600/60 text-center transition-all cursor-pointer group flex flex-col items-center justify-center"
+                    title="Click to view full Quota and Token Metrics"
+                  >
+                    <div className="text-2xl font-bold text-purple-400 group-hover:text-purple-300 flex items-center justify-center gap-1">
+                      <span>{batchTotalTokens > 0 ? `${(batchTotalTokens / 1000).toFixed(1)}k` : `${quotaData.requestsToday}`}</span>
+                      <Activity className="w-3.5 h-3.5 text-purple-400 opacity-70" />
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-purple-400/80 group-hover:text-purple-300">
+                      {batchTotalTokens > 0 ? 'Batch Tokens' : 'Quota Today'}
+                    </div>
+                  </button>
                </div>
             </div>
 
@@ -855,6 +949,18 @@ const App: React.FC = () => {
         apiKey={settings.apiKey}
         model={settings.model}
         onSave={handleSaveSettings}
+      />
+
+      <QuotaModal
+        isOpen={showQuotaModal}
+        onClose={() => setShowQuotaModal(false)}
+        currentModel={settings.model}
+        quotaData={quotaData}
+        batchCompletedCount={completedCount}
+        batchTotalTokens={batchTotalTokens}
+        onSwitchModel={async (newModel) => {
+          await handleSaveSettings(settings.apiKey, newModel);
+        }}
       />
     </div>
   );

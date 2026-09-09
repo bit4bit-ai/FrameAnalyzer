@@ -12,28 +12,34 @@ interface SettingsModalProps {
 
 const AVAILABLE_MODELS = [
   {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    badge: '1,500 RPD (High Free Quota)',
+    description: 'Best for 100+ videos/day: Stable high-volume quota (1,500 free requests/day). Fast & accurate.',
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash-Lite',
+    badge: '1,500 RPD (Fastest)',
+    description: 'Ultra-fast & lightweight (1,500 free requests/day). Lowest token consumption and cost.',
+  },
+  {
     id: 'gemini-3.6-flash',
     name: 'Gemini 3.6 Flash',
-    badge: 'Recommended',
-    description: 'Fast multimodal model balancing speed and reasoning across general tasks (recommended by Google).',
+    badge: 'Gemini 3 Preview (~50 RPD)',
+    description: 'Next-gen reasoning. Note: Google AI Studio Free Tier limits this preview to ~50-100 requests/day.',
   },
   {
     id: 'gemini-3.7-flash',
     name: 'Gemini 3.7 Flash',
-    badge: 'High-Speed',
-    description: 'High-speed, efficient flash model built for rapid video frame analysis and reliable execution.',
+    badge: 'Preview (~50 RPD)',
+    description: 'High-speed model with thinking capabilities. ~50-100 free requests/day on Google Free Tier.',
   },
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    badge: 'Deep Intelligence',
-    description: 'Google’s most intelligent flash model, engineered for high-precision visual recognition and complex scenes.',
-  },
-  {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash Preview',
-    badge: 'Preview Tier',
-    description: 'Next-generation preview model for testing experimental capabilities.',
+    badge: 'Preview (~50 RPD)',
+    description: 'Deep visual intelligence preview. ~50-100 free requests/day on Google Free Tier.',
   },
 ];
 

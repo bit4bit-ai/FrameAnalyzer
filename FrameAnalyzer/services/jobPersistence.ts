@@ -56,6 +56,7 @@ export const saveJobSession = async (session: SavedJobSession): Promise<void> =>
         error: v.error,
         fileHandle: v.fileHandle,
         parentHandle: v.parentHandle,
+        usage: v.usage,
       }));
 
       const payload: SavedJobSession = {
