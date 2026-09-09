@@ -2,6 +2,15 @@ import { GoogleGenAI } from "@google/genai";
 import { GEMINI_MODEL_NAME } from "../constants";
 import { getActiveApiKey, getActiveModel } from "./settingsService";
 
+export interface AnalysisResultWithUsage {
+  text: string;
+  usage?: {
+    promptTokens: number;
+    candidateTokens: number;
+    totalTokens: number;
+  };
+}
+
 export const generateVideoAnalysis = async (
   prompt: string,
   base64Images: string[],
@@ -9,7 +18,7 @@ export const generateVideoAnalysis = async (
   keywordPool: string[] = [],
   customApiKey?: string,
   customModel?: string
-): Promise<string> => {
+): Promise<AnalysisResultWithUsage> => {
   const apiKey = (customApiKey || getActiveApiKey()).trim();
 
   if (!apiKey) {
@@ -101,7 +110,20 @@ ${finalPrompt}`;
     });
 
     const rawText = response.text || "No analysis generated.";
-    return cleanDuplicateKeywordsInText(rawText);
+    const cleanText = cleanDuplicateKeywordsInText(rawText);
+
+    let usage: { promptTokens: number; candidateTokens: number; totalTokens: number } | undefined;
+    if (response.usageMetadata) {
+      const promptTokens = response.usageMetadata.promptTokenCount || 0;
+      const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
+      const totalTokens = response.usageMetadata.totalTokenCount || (promptTokens + candidateTokens);
+      usage = { promptTokens, candidateTokens, totalTokens };
+    }
+
+    return {
+      text: cleanText,
+      usage,
+    };
   } catch (error: any) {
     let message = "Unknown error connecting to Gemini.";
     

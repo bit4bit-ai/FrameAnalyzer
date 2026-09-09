@@ -9,6 +9,11 @@ export interface VideoFile {
   screenshots: string[]; // Base64 strings for UI
   analysisResult?: string;
   error?: string;
+  usage?: {
+    promptTokens: number;
+    candidateTokens: number;
+    totalTokens: number;
+  };
 }
 
 export enum ProcessingStatus {

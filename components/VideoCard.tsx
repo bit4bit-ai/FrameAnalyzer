@@ -68,6 +68,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+            {video.usage && video.status === ProcessingStatus.COMPLETED && (
+              <div 
+                className="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-950/50 border border-purple-700/50 text-purple-300 flex items-center gap-1 cursor-help"
+                title={`Input: ${video.usage.promptTokens.toLocaleString()} tokens (3 frames + prompt)\nOutput: ${video.usage.candidateTokens.toLocaleString()} tokens (analysis)`}
+              >
+                <span className="text-purple-400">⚡</span>
+                {video.usage.totalTokens.toLocaleString()} tok
+              </div>
+            )}
             <div className="text-xs font-mono px-2 py-1 rounded bg-black/30 uppercase tracking-wider">
               {video.status}
             </div>
