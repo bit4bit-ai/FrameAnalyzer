@@ -2,8 +2,8 @@ export const SUPPORTED_VIDEO_EXTENSIONS = [
   'mp4', 'mov', 'webm', 'mkv', 'avi'
 ];
 
-// gemini-3.6-flash is the standard, high-speed multimodal production model recommended by Google
-export const GEMINI_MODEL_NAME = 'gemini-3.6-flash';
+// gemini-3.5-flash-lite is the official replacement for flash-lite, built for high-throughput multimodal processing
+export const GEMINI_MODEL_NAME = 'gemini-3.5-flash-lite';
 
 export const DEFAULT_PROMPT = `View these 3 frames (start, middle, end) as a continuous video clip and generate metadata strictly adhering to Getty Images submission standards.
 

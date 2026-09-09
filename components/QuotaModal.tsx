@@ -163,17 +163,17 @@ const QuotaModal: React.FC<QuotaModalProps> = ({
                   Need to analyze 100+ videos per day for free?
                 </div>
                 <p className="text-xs text-blue-300/80 leading-relaxed">
-                  Switch to <strong>Gemini 2.5 Flash</strong>. Google grants <strong>1,500 free requests per day</strong> for 2.5 Flash (compared to ~50 for 3.x preview models).
+                  Switch to <strong>Gemini 3.5 Flash-Lite</strong>. Google grants <strong>1,500 free requests per day</strong> for 3.5 Flash-Lite (compared to only ~20 for 3.6 Flash).
                 </p>
               </div>
               <button
                 onClick={() => {
-                  onSwitchModel('gemini-2.5-flash');
+                  onSwitchModel('gemini-3.5-flash-lite');
                   onClose();
                 }}
                 className="shrink-0 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                Switch to 2.5 Flash
+                Switch to 3.5 Flash-Lite
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

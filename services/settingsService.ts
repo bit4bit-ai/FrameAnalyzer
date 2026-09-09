@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 const API_KEY_STORAGE_KEY = 'frame_analyzer_gemini_api_key';
 const MODEL_STORAGE_KEY = 'frame_analyzer_gemini_model';
 
-export const DEFAULT_MODEL = 'gemini-3.6-flash';
+export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
 export interface AppSettings {
   apiKey: string;
@@ -24,7 +24,7 @@ export const getActiveApiKey = (): string => {
  */
 export const getActiveModel = (): string => {
   const local = localStorage.getItem(MODEL_STORAGE_KEY);
-  if (local && local.trim()) return local.trim();
+  if (local && local.trim() && !local.includes('gemini-2.5')) return local.trim();
   return DEFAULT_MODEL;
 };
 
@@ -34,6 +34,10 @@ export const getActiveModel = (): string => {
 export const loadSettings = async (): Promise<AppSettings> => {
   let apiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
   let model = localStorage.getItem(MODEL_STORAGE_KEY) || DEFAULT_MODEL;
+  if (model.includes('gemini-2.5')) {
+    model = DEFAULT_MODEL;
+    localStorage.setItem(MODEL_STORAGE_KEY, model);
+  }
 
   try {
     const res = await fetch('/api/settings');
