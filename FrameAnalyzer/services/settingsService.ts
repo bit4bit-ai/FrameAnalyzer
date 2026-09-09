@@ -105,3 +105,67 @@ export const testGeminiApiKey = async (apiKey: string, modelToTest?: string): Pr
     return { success: false, message: err.message || 'Failed to authenticate API key.' };
   }
 };
+
+const CUSTOM_GROUP_NAMES_STORAGE_KEY = 'frame_analyzer_custom_group_names';
+
+/**
+ * Load user-renamed group names from localStorage settings
+ * Strictly filters by groupId (starting with 'grp-') to prevent cross-group name bleeding
+ */
+export const loadCustomGroupNames = (): Record<string, string> => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_GROUP_NAMES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const sanitized: Record<string, string> = {};
+    let hasLegacyKeys = false;
+
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string' && k.startsWith('grp-')) {
+        sanitized[k] = v;
+      } else {
+        hasLegacyKeys = true;
+      }
+    }
+
+    if (hasLegacyKeys) {
+      localStorage.setItem(CUSTOM_GROUP_NAMES_STORAGE_KEY, JSON.stringify(sanitized));
+    }
+    return sanitized;
+  } catch {
+    return {};
+  }
+};
+
+/**
+ * Persist a user-renamed group name into localStorage settings strictly by unique groupId
+ */
+export const saveCustomGroupName = (groupId: string, name: string): void => {
+  if (!groupId || !groupId.startsWith('grp-')) return;
+  try {
+    const current = loadCustomGroupNames();
+    const cleanName = name.trim();
+    if (cleanName) {
+      current[groupId] = cleanName;
+    } else {
+      delete current[groupId];
+    }
+    localStorage.setItem(CUSTOM_GROUP_NAMES_STORAGE_KEY, JSON.stringify(current));
+  } catch (err) {
+    console.warn('Failed to save custom group name to localStorage:', err);
+  }
+};
+
+/**
+ * Remove a user-renamed group name from localStorage settings
+ */
+export const removeCustomGroupName = (groupId: string): void => {
+  if (!groupId) return;
+  try {
+    const current = loadCustomGroupNames();
+    delete current[groupId];
+    localStorage.setItem(CUSTOM_GROUP_NAMES_STORAGE_KEY, JSON.stringify(current));
+  } catch (err) {
+    console.warn('Failed to remove custom group name from localStorage:', err);
+  }
+};

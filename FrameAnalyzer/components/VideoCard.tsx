@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { VideoFile, ProcessingStatus } from '../types';
 import { formatThreeLevelPath } from '../services/fileSystem';
-import { Loader2, CheckCircle, AlertCircle, FileVideo, Image as ImageIcon, BrainCircuit, Save, Ban } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, FileVideo, Image as ImageIcon, BrainCircuit, Save, Ban, RotateCcw, Play } from 'lucide-react';
 
 interface VideoCardProps {
   video: VideoFile;
   onSave?: (video: VideoFile) => Promise<void>;
+  onRetry?: (video: VideoFile) => void;
 }
 
 const statusColors = {
@@ -26,7 +27,7 @@ const statusIcons = {
   [ProcessingStatus.ERROR]: AlertCircle,
 };
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, onSave }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, onSave, onRetry }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -80,6 +81,40 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave }) => {
             <div className="text-xs font-mono px-2 py-1 rounded bg-black/30 uppercase tracking-wider">
               {video.status}
             </div>
+            {onRetry && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRetry(video);
+                }}
+                disabled={isProcessing}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600/70 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  isProcessing 
+                    ? "Processing..." 
+                    : (video.status === ProcessingStatus.COMPLETED || video.status === ProcessingStatus.ERROR) 
+                    ? "Retry analysis for this video" 
+                    : "Run analysis for this video"
+                }
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin text-purple-400" />
+                    <span>Running</span>
+                  </>
+                ) : (video.status === ProcessingStatus.COMPLETED || video.status === ProcessingStatus.ERROR) ? (
+                  <>
+                    <RotateCcw className="w-3 h-3 text-purple-400" />
+                    <span>Retry</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3 h-3 fill-current text-purple-400" />
+                    <span>Run</span>
+                  </>
+                )}
+              </button>
+            )}
         </div>
       </div>
 
@@ -160,8 +195,23 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave }) => {
 
       {/* Error Message: only shown when in ERROR status */}
       {video.status === ProcessingStatus.ERROR && video.error && (
-        <div className="bg-red-500/10 text-red-300 p-3 rounded-lg text-sm border border-red-500/20">
-          <span className="font-bold">Error:</span> {video.error}
+        <div className="bg-red-500/10 text-red-300 p-3 rounded-lg text-sm border border-red-500/20 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="font-bold">Error:</span> {video.error}
+          </div>
+          {onRetry && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry(video);
+              }}
+              disabled={isProcessing}
+              className="px-3 py-1 bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-700/60 rounded-md text-xs font-medium flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Retry
+            </button>
+          )}
         </div>
       )}
     </div>

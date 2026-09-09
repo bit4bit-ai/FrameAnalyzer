@@ -319,3 +319,93 @@ export const packageAllVideosZip = async (videos: VideoFile[]) => {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 100);
 };
+
+/**
+ * Extract a quick, lightweight first frame thumbnail from a video file
+ */
+export const extractFirstFrameThumbnail = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    const objectUrl = URL.createObjectURL(file);
+
+    let isDone = false;
+    const cleanup = () => {
+      if (isDone) return;
+      isDone = true;
+      video.onloadedmetadata = null;
+      video.onloadeddata = null;
+      video.onseeked = null;
+      video.onerror = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+    };
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Thumbnail timeout'));
+    }, 6000);
+
+    const tryCapture = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const MAX_W = 160;
+        const width = video.videoWidth || 160;
+        const height = video.videoHeight || 90;
+        const ratio = width / height;
+        canvas.width = MAX_W;
+        canvas.height = Math.max(20, Math.round(MAX_W / ratio));
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+          clearTimeout(timeout);
+          cleanup();
+          resolve(dataUrl);
+          return;
+        }
+      } catch (err) {
+        // Fall through
+      }
+      clearTimeout(timeout);
+      cleanup();
+      reject(new Error('Thumbnail render failed'));
+    };
+
+    let seekTriggered = false;
+    const handleReady = () => {
+      if (seekTriggered) return;
+      seekTriggered = true;
+      const duration = video.duration;
+      // Seek slightly into video to avoid blank/black opening frames
+      const seekTarget = (duration && Number.isFinite(duration) && duration > 0.5)
+        ? Math.min(0.5, duration * 0.05)
+        : 0.1;
+      
+      video.onseeked = () => {
+        tryCapture();
+      };
+
+      try {
+        video.currentTime = seekTarget;
+      } catch (err) {
+        tryCapture();
+      }
+    };
+
+    video.onloadedmetadata = handleReady;
+    video.onloadeddata = handleReady;
+
+    video.onerror = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(new Error('Video load error'));
+    };
+
+    video.src = objectUrl;
+  });
+};

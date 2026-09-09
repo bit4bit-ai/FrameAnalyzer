@@ -8,6 +8,7 @@ const SESSION_KEY = 'active_session';
 export interface SavedJobSession {
   directoryName: string | null;
   dirHandle?: FileSystemDirectoryHandle;
+  directoryHandles?: Record<string, FileSystemDirectoryHandle>;
   isFallbackMode: boolean;
   videoFiles: VideoFile[];
   isProcessing: boolean;
@@ -50,6 +51,10 @@ export const saveJobSession = async (session: SavedJobSession): Promise<void> =>
         id: v.id,
         name: v.name,
         path: v.path,
+        groupId: v.groupId,
+        parentFolderName: v.parentFolderName,
+        isUserRenamed: v.isUserRenamed,
+        createdAt: v.createdAt,
         status: v.status,
         screenshots: v.screenshots || [],
         analysisResult: v.analysisResult,
@@ -62,6 +67,7 @@ export const saveJobSession = async (session: SavedJobSession): Promise<void> =>
       const payload: SavedJobSession = {
         directoryName: session.directoryName,
         dirHandle: session.dirHandle,
+        directoryHandles: session.directoryHandles,
         isFallbackMode: session.isFallbackMode,
         videoFiles: sanitizedVideos,
         isProcessing: session.isProcessing,
