@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Tags, Plus, X, Upload, Download, Trash2, Check, Loader2, Info, FileText, AlertCircle, Search, ClipboardPaste, Eye, EyeOff, Database } from 'lucide-react';
 import { parseCommaSeparatedKeywords, parseKeywordsFromArray, exportKeywordsToFile } from '../services/keywordService';
 
@@ -10,6 +10,9 @@ interface KeywordManagerProps {
 }
 
 const PAGE_SIZE = 150;
+const STAGED_KEY = 'frame_analyzer_staged_keywords';
+const INPUT_KEY = 'frame_analyzer_keyword_input';
+const BULK_KEY = 'frame_analyzer_keyword_bulk';
 
 const KeywordManager: React.FC<KeywordManagerProps> = ({
   dbKeywords,
@@ -17,14 +20,52 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   onClearDb,
   isSaving,
 }) => {
-  // Staging area: newly added keywords waiting to be uploaded to database
-  const [stagedKeywords, setStagedKeywords] = useState<string[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [bulkText, setBulkText] = useState('');
+  // Staging area: newly added keywords waiting to be uploaded to database (persisted across refresh)
+  const [stagedKeywords, setStagedKeywords] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(STAGED_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [inputValue, setInputValue] = useState<string>(() => {
+    try {
+      return localStorage.getItem(INPUT_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [bulkText, setBulkText] = useState<string>(() => {
+    try {
+      return localStorage.getItem(BULK_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showDbViewer, setShowDbViewer] = useState(false);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
   const [visibleDbCount, setVisibleDbCount] = useState(PAGE_SIZE);
+
+  // Sync staged keywords and text to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STAGED_KEY, JSON.stringify(stagedKeywords));
+    } catch {}
+  }, [stagedKeywords]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INPUT_KEY, inputValue);
+    } catch {}
+  }, [inputValue]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BULK_KEY, bulkText);
+    } catch {}
+  }, [bulkText]);
 
   const [notification, setNotification] = useState<{ type: 'success' | 'warning' | 'info'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +148,10 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   const handleClearStaged = () => {
     setStagedKeywords([]);
     setInputValue('');
+    try {
+      localStorage.removeItem(STAGED_KEY);
+      localStorage.removeItem(INPUT_KEY);
+    } catch {}
     setNotification(null);
   };
 
@@ -133,6 +178,11 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
       setStagedKeywords([]);
       setInputValue('');
       setBulkText('');
+      try {
+        localStorage.removeItem(STAGED_KEY);
+        localStorage.removeItem(INPUT_KEY);
+        localStorage.removeItem(BULK_KEY);
+      } catch {}
 
       setNotification({
         type: 'success',
