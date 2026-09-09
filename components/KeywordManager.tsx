@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Tags, Plus, X, Upload, Download, Trash2, Check, Loader2, Info, FileText, AlertCircle, Search, ClipboardPaste, Eye, EyeOff, Database } from 'lucide-react';
 import { parseCommaSeparatedKeywords, parseKeywordsFromArray, exportKeywordsToFile } from '../services/keywordService';
+import ModalDialog, { ModalDialogConfig } from './ModalDialog';
 
 interface KeywordManagerProps {
   dbKeywords: string[];
@@ -45,6 +46,8 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   });
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showDbViewer, setShowDbViewer] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [dialogConfig, setDialogConfig] = useState<ModalDialogConfig | null>(null);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
   const [visibleDbCount, setVisibleDbCount] = useState(PAGE_SIZE);
 
@@ -244,7 +247,10 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
           });
         }
       } catch (err: any) {
-        alert(`Failed to import file: ${err.message || 'Invalid format'}`);
+        setNotification({
+          type: 'warning',
+          message: `Failed to import file: ${err.message || 'Invalid format'}`
+        });
       }
     };
 
@@ -254,13 +260,26 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
 
   const handleClearDatabase = async () => {
     if (dbKeywords.length === 0) return;
-    if (window.confirm(`Are you sure you want to completely erase all ${dbKeywords.length.toLocaleString()} keywords from the database?`)) {
-      await onClearDb();
-      setNotification({
-        type: 'info',
-        message: 'Database has been cleared.'
-      });
-    }
+    setDialogConfig({
+      isOpen: true,
+      type: 'confirm',
+      title: 'Erase Keywords Database',
+      message: `Are you sure you want to completely erase all ${dbKeywords.length.toLocaleString()} keywords from the database?`,
+      confirmText: 'Erase All',
+      cancelText: 'Cancel',
+      isDestructive: true,
+      onConfirm: async () => {
+        setDialogConfig(null);
+        await onClearDb();
+        setNotification({
+          type: 'info',
+          message: 'Database has been cleared.'
+        });
+      },
+      onCancel: () => {
+        setDialogConfig(null);
+      }
+    });
   };
 
   return (
@@ -606,6 +625,8 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
           Only identical keywords are skipped.
         </div>
       </div>
+
+      <ModalDialog config={dialogConfig} />
     </div>
   );
 };
