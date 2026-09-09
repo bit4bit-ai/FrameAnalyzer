@@ -17,6 +17,7 @@ It combines client-side browser video decoding with Google Gemini multimodal AI 
   - [5. Settings & API Management](#5-settings--api-management)
   - [6. File System Access & Auto-Saving](#6-file-system-access--auto-saving)
   - [7. Rate Limiting & Queue Resilience](#7-rate-limiting--queue-resilience)
+  - [8. Full State & Job Session Persistence](#8-full-state--job-session-persistence-refresh--crash-resilience)
 - [Application Architecture](#application-architecture)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -127,6 +128,15 @@ The built-in prompt enforces stock photography and footage metadata criteria:
 - **Auto-Retry Loop**: Automatically retries failed videos up to 3 times before marking them with an error status.
 - **Quota Guard Modal**: If an API quota is exhausted (`429 RESOURCE_EXHAUSTED`), processing halts automatically and displays an alert modal to avoid burning through connection attempts.
 - **Independent Controls**: Start, Pause, Stop, and Retry Errors buttons with live counts (Found, Done, Errors).
+
+### 8. Full State & Job Session Persistence (Refresh & Crash Resilience)
+- **Zero Data Loss on Refresh**: All configuration settings, text inputs, and running batch jobs are persisted automatically so refreshing the browser never loses your work:
+  - **AI Prompt**: Saved to `localStorage` as you type, with an instant "Reset Default" button to revert to the default template anytime.
+  - **Pasted & Staged Keywords**: Inputs, bulk text, and staged keyword chips are preserved across refreshes until explicitly committed to the database.
+  - **API Key & Selected Model**: Stored in `localStorage` and synchronized with `.env.local` on disk.
+  - **Active Job Run & Queue (IndexedDB)**: Complete video queue state (file names, paths, extracted keyframes, completed analysis texts, and errors) is persisted to browser IndexedDB (`FrameAnalyzerSessionDB`), avoiding browser 5MB `localStorage` limits.
+  - **Automatic Job Continuation**: If the page is refreshed while an analysis is running, the app restores the queue, verifies directory access permissions, and prompts to resume processing or auto-resumes smoothly with no duplicate work.
+
 
 ---
 
