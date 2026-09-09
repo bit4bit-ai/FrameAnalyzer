@@ -343,7 +343,7 @@ const App: React.FC = () => {
                 }
 
                 setStatusMessage(`Extracting frames: ${videoName}`);
-                updateStatus(ProcessingStatus.EXTRACTING);
+                updateStatus(ProcessingStatus.EXTRACTING, { error: undefined });
                 
                 await new Promise(r => setTimeout(r, 50)); 
                 
@@ -362,7 +362,7 @@ const App: React.FC = () => {
             if (timeSinceLastCall < RATE_LIMIT_INTERVAL_MS) {
               const waitTime = RATE_LIMIT_INTERVAL_MS - timeSinceLastCall;
               setStatusMessage(`Cooling down... ${(waitTime/1000).toFixed(1)}s`);
-              updateStatus(ProcessingStatus.ANALYZING); 
+              updateStatus(ProcessingStatus.ANALYZING, { error: undefined }); 
               await new Promise(resolve => setTimeout(resolve, waitTime));
             }
 
@@ -371,7 +371,7 @@ const App: React.FC = () => {
                 ? `Retry ${retryCount}: Analyzing ${videoName}...`
                 : `Analyzing ${videoName}...`
             );
-            updateStatus(ProcessingStatus.ANALYZING);
+            updateStatus(ProcessingStatus.ANALYZING, { error: undefined });
             
             await new Promise(r => setTimeout(r, 50));
 
@@ -397,6 +397,7 @@ const App: React.FC = () => {
             updateStatus(ProcessingStatus.COMPLETED, { 
               analysisResult: analysis,
               usage: usage,
+              error: undefined,
             });
             isVideoComplete = true; 
 
@@ -508,14 +509,17 @@ const App: React.FC = () => {
           setDirHandle(savedSession.dirHandle);
         }
 
-        // Revert any video interrupted mid-operation back to PENDING
+        // Revert any video interrupted mid-operation back to PENDING, and clear error on completed items
         const sanitizedVideos = savedSession.videoFiles.map(v => {
           if (
             v.status === ProcessingStatus.EXTRACTING || 
             v.status === ProcessingStatus.SAVING || 
             v.status === ProcessingStatus.ANALYZING
           ) {
-            return { ...v, status: ProcessingStatus.PENDING };
+            return { ...v, status: ProcessingStatus.PENDING, error: undefined };
+          }
+          if (v.status === ProcessingStatus.COMPLETED) {
+            return { ...v, error: undefined };
           }
           return v;
         });
