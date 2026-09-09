@@ -158,8 +158,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave }) => {
         </div>
       )}
 
-      {/* Error Message */}
-      {video.error && (
+      {/* Error Message: only shown when in ERROR status */}
+      {video.status === ProcessingStatus.ERROR && video.error && (
         <div className="bg-red-500/10 text-red-300 p-3 rounded-lg text-sm border border-red-500/20">
           <span className="font-bold">Error:</span> {video.error}
         </div>
