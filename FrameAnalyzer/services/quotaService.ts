@@ -22,6 +22,16 @@ export interface ModelQuotaSpec {
 }
 
 export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
+  'gemini-2.5-flash': {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    rpm: 15,
+    rpdFreeTier: 1500,
+    inputPricePerMillion: 0.30,
+    outputPricePerMillion: 2.50,
+    tierNote: 'Stable production Flash model: rich multimodal reasoning, high availability, and 1,500 free requests/day.',
+    isRecommendedForVolume: true,
+  },
   'gemini-3.5-flash-lite': {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',

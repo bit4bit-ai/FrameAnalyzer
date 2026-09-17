@@ -38,6 +38,14 @@ export interface FrameData {
 declare global {
   interface Window {
     showDirectoryPicker(options?: { mode?: 'read' | 'readwrite'; id?: string; startIn?: string }): Promise<FileSystemDirectoryHandle>;
+    showOpenFilePicker(options?: {
+      multiple?: boolean;
+      excludeAcceptAllOption?: boolean;
+      types?: Array<{
+        description?: string;
+        accept: Record<string, string[]>;
+      }>;
+    }): Promise<FileSystemFileHandle[]>;
   }
   interface FileSystemDirectoryHandle {
     entries(): AsyncIterable<[string, FileSystemHandle]>;

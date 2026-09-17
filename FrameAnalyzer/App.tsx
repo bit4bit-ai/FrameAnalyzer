@@ -67,7 +67,8 @@ import {
   CheckCircle2,
   Edit2,
   Trash2,
-  X
+  X,
+  FileVideo
 } from 'lucide-react';
 
 // Free Tier Limit: 15 Requests Per Minute (RPM).
@@ -97,6 +98,7 @@ const App: React.FC = () => {
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaData, setQuotaData] = useState<StoredDailyQuota>(loadStoredQuota);
   const [modalDialogConfig, setModalDialogConfig] = useState<ModalDialogConfig | null>(null);
+  const [activeJobGroupId, setActiveJobGroupId] = useState<string | null>(null);
   
   // Settings State (API Key & Model)
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -124,13 +126,20 @@ const App: React.FC = () => {
   const isSessionLoadedRef = useRef(false);
   const shouldStopRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
   const directoryHandlesRef = useRef<Record<string, FileSystemDirectoryHandle>>({});
   const hasLocationRenamedRef = useRef<Record<string, boolean>>({});
   const groupLocationScoreRef = useRef<Record<string, number>>({});
   const priorityVideoIdRef = useRef<string | null>(null);
   const priorityGroupIdRef = useRef<string | null>(null);
+  const activeJobGroupIdRef = useRef<string | null>(null);
+  const processQueueRef = useRef<((targetGroupId?: string) => Promise<void>) | null>(null);
 
   // Keep refs in sync with state
+  useEffect(() => {
+    activeJobGroupIdRef.current = activeJobGroupId;
+  }, [activeJobGroupId]);
+
   useEffect(() => {
     videoFilesRef.current = videoFiles;
   }, [videoFiles]);
@@ -333,6 +342,7 @@ const App: React.FC = () => {
         const folderName = selectedHandle.name;
         const now = Date.now();
         const newGroupId = `grp-${now}-${Math.random().toString(36).substr(2, 4)}`;
+        setActiveJobGroupId(newGroupId);
 
         const parentFolderName = undefined;
 
@@ -392,6 +402,8 @@ const App: React.FC = () => {
 
         setVideoFiles(mergedVideos);
         videoFilesRef.current = mergedVideos;
+        setActiveJobGroupId(newGroupId);
+        activeJobGroupIdRef.current = newGroupId;
 
         await saveJobSession({
           directoryName: folderName,
@@ -427,6 +439,7 @@ const App: React.FC = () => {
     const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : "Selected Folder";
     const now = Date.now();
     const newGroupId = `grp-${now}-${Math.random().toString(36).substr(2, 4)}`;
+    setActiveJobGroupId(newGroupId);
     const parentFolderName = undefined;
 
     setIsFallbackMode(true);
@@ -469,8 +482,168 @@ const App: React.FC = () => {
 
     setVideoFiles(mergedVideos);
     videoFilesRef.current = mergedVideos;
+    setActiveJobGroupId(newGroupId);
+    activeJobGroupIdRef.current = newGroupId;
 
     setStatusMessage("Files loaded successfully.");
+  };
+
+  const handleSelectFiles = async () => {
+    if (window.showOpenFilePicker) {
+      try {
+        const fileHandles = await window.showOpenFilePicker({
+          multiple: true,
+          types: [
+            {
+              description: 'Video Files',
+              accept: {
+                'video/*': ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v', '.wmv']
+              }
+            }
+          ]
+        });
+
+        if (!fileHandles || fileHandles.length === 0) return;
+
+        const now = Date.now();
+        const newGroupId = `grp-${now}-${Math.random().toString(36).substr(2, 4)}`;
+        setActiveJobGroupId(newGroupId);
+        const groupLabel = fileHandles.length === 1 
+          ? fileHandles[0].name.replace(/\.[^/.]+$/, "") 
+          : `Selected Videos (${fileHandles.length})`;
+
+        const newVideos: VideoFile[] = [];
+        for (let i = 0; i < fileHandles.length; i++) {
+          const handle = fileHandles[i];
+          try {
+            const file = await handle.getFile();
+            newVideos.push({
+              id: `vid-${now}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+              name: file.name,
+              path: file.name,
+              groupId: newGroupId,
+              parentFolderName: groupLabel,
+              createdAt: now,
+              fileHandle: handle,
+              file,
+              status: ProcessingStatus.PENDING,
+              screenshots: [],
+            });
+          } catch (fileErr) {
+            console.warn(`Could not read file handle for ${handle.name}:`, fileErr);
+          }
+        }
+
+        if (newVideos.length === 0) return;
+
+        setDirectoryName(prev => {
+          if (!prev) return groupLabel;
+          if (prev.includes(groupLabel)) return prev;
+          return `${prev}, ${groupLabel}`;
+        });
+
+        const existingKeys = new Set(videoFilesRef.current.map(v => `${v.groupId || ''}::${v.path}`));
+        const uniqueNewVideos = newVideos.filter(v => !existingKeys.has(`${v.groupId}::${v.path}`));
+        const mergedVideos = [...uniqueNewVideos, ...videoFilesRef.current];
+
+        setCollapsedFolders(prev => {
+          const next = { ...prev };
+          folderGroups.forEach(g => {
+            next[g.groupKey] = true;
+          });
+          return next;
+        });
+
+        setVideoFiles(mergedVideos);
+        videoFilesRef.current = mergedVideos;
+        setActiveJobGroupId(newGroupId);
+        activeJobGroupIdRef.current = newGroupId;
+
+        await saveJobSession({
+          directoryName: directoryName || groupLabel,
+          dirHandle: currentDirHandleRef.current || dirHandle,
+          directoryHandles: directoryHandlesRef.current,
+          isFallbackMode,
+          videoFiles: mergedVideos,
+          isProcessing: false,
+          timestamp: Date.now(),
+        });
+
+        setStatusMessage(`Loaded ${uniqueNewVideos.length} video ${uniqueNewVideos.length === 1 ? 'file' : 'files'}.`);
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.warn("showOpenFilePicker failed, falling back to input:", err);
+      }
+    }
+
+    if (filesInputRef.current) {
+      filesInputRef.current.click();
+    }
+  };
+
+  const handleFallbackFilesInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const now = Date.now();
+    const newGroupId = `grp-${now}-${Math.random().toString(36).substr(2, 4)}`;
+    setActiveJobGroupId(newGroupId);
+    const groupLabel = files.length === 1 
+      ? files[0].name.replace(/\.[^/.]+$/, "") 
+      : `Selected Videos (${files.length})`;
+
+    const newVideos: VideoFile[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      newVideos.push({
+        id: `vid-${now}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+        name: file.name,
+        path: file.name,
+        groupId: newGroupId,
+        parentFolderName: groupLabel,
+        createdAt: now,
+        file,
+        status: ProcessingStatus.PENDING,
+        screenshots: [],
+      });
+    }
+
+    setDirectoryName(prev => {
+      if (!prev) return groupLabel;
+      if (prev.includes(groupLabel)) return prev;
+      return `${prev}, ${groupLabel}`;
+    });
+
+    const existingKeys = new Set(videoFilesRef.current.map(v => `${v.groupId || ''}::${v.path}`));
+    const uniqueNewVideos = newVideos.filter(v => !existingKeys.has(`${v.groupId}::${v.path}`));
+    const mergedVideos = [...uniqueNewVideos, ...videoFilesRef.current];
+
+    setCollapsedFolders(prev => {
+      const next = { ...prev };
+      folderGroups.forEach(g => {
+        next[g.groupKey] = true;
+      });
+      return next;
+    });
+
+    setVideoFiles(mergedVideos);
+    videoFilesRef.current = mergedVideos;
+    setActiveJobGroupId(newGroupId);
+    activeJobGroupIdRef.current = newGroupId;
+
+    await saveJobSession({
+      directoryName: directoryName || groupLabel,
+      dirHandle: currentDirHandleRef.current || dirHandle,
+      directoryHandles: directoryHandlesRef.current,
+      isFallbackMode,
+      videoFiles: mergedVideos,
+      isProcessing: false,
+      timestamp: Date.now(),
+    });
+
+    setStatusMessage(`Loaded ${uniqueNewVideos.length} video ${uniqueNewVideos.length === 1 ? 'file' : 'files'}.`);
+    event.target.value = '';
   };
 
   const handleClearBatch = async () => {
@@ -531,7 +704,7 @@ const App: React.FC = () => {
     }
   };
 
-  const processQueue = useCallback(async () => {
+  const processQueue = useCallback(async (targetGroupId?: string) => {
     if (isProcessingRef.current) return;
     
     shouldStopRef.current = false;
@@ -540,17 +713,35 @@ const App: React.FC = () => {
     setStatusMessage("Starting analysis...");
     setShowAbortModal(false);
 
-    let queueIds = videoFilesRef.current.map(v => v.id);
+    let queueIds: string[] = [];
     if (priorityVideoIdRef.current) {
       const prioId = priorityVideoIdRef.current;
       priorityVideoIdRef.current = null;
-      queueIds = [prioId, ...queueIds.filter(id => id !== prioId)];
-    } else if (priorityGroupIdRef.current) {
-      const prioGrp = priorityGroupIdRef.current;
+      const targetVideo = videoFilesRef.current.find(v => v.id === prioId);
+      const grpId = targetVideo?.groupId || targetGroupId;
+      if (grpId) {
+        // Strictly stay within this video's job/group - never spill over into other groups
+        const jobVideos = videoFilesRef.current.filter(v => v.groupId === grpId);
+        queueIds = [prioId, ...jobVideos.filter(v => v.id !== prioId).map(v => v.id)];
+      } else {
+        queueIds = [prioId];
+      }
+    } else if (priorityGroupIdRef.current || targetGroupId) {
+      const prioGrp = priorityGroupIdRef.current || targetGroupId!;
       priorityGroupIdRef.current = null;
-      const grpIds = videoFilesRef.current.filter(v => v.groupId === prioGrp).map(v => v.id);
-      const otherIds = videoFilesRef.current.filter(v => v.groupId !== prioGrp).map(v => v.id);
-      queueIds = [...grpIds, ...otherIds];
+      // Strictly stay within this group/job - do NOT proceed into other groups/jobs
+      queueIds = videoFilesRef.current.filter(v => v.groupId === prioGrp).map(v => v.id);
+    } else {
+      // Fallback: stay within the active or first pending group
+      const currentActiveId = activeJobGroupIdRef.current;
+      const defaultGroup = currentActiveId 
+        ? videoFilesRef.current.find(v => v.groupId === currentActiveId)?.groupId 
+        : videoFilesRef.current.find(v => v.status === ProcessingStatus.PENDING)?.groupId;
+      if (defaultGroup) {
+        queueIds = videoFilesRef.current.filter(v => v.groupId === defaultGroup).map(v => v.id);
+      } else {
+        queueIds = videoFilesRef.current.map(v => v.id);
+      }
     }
     let lastApiCallTime = 0;
     let abortDueToQuota = false;
@@ -579,6 +770,10 @@ const App: React.FC = () => {
           if (!currentVideo || currentVideo.status === ProcessingStatus.COMPLETED) {
             isVideoComplete = true;
             continue;
+          }
+
+          if (currentVideo.groupId) {
+            setActiveJobGroupId(currentVideo.groupId);
           }
 
           const videoName = currentVideo.name;
@@ -714,20 +909,30 @@ const App: React.FC = () => {
             const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
             
             const isResourceExhausted = errorMessage.includes('RESOURCE_EXHAUSTED');
+            const isServiceUnavailable = errorMessage.includes('503') || 
+                                         errorMessage.includes('UNAVAILABLE') || 
+                                         errorMessage.includes('high demand') ||
+                                         errorMessage.includes('overloaded');
             const isRateLimit = errorMessage.includes('429') || 
                                 errorMessage.includes('quota') || 
                                 isResourceExhausted;
 
+            const shouldRetry = (isRateLimit && !isResourceExhausted) || isServiceUnavailable;
             const effectiveMaxRetries = isResourceExhausted ? 0 : MAX_RETRIES;
 
-            if (isRateLimit && retryCount < effectiveMaxRetries) {
+            if (shouldRetry && retryCount < effectiveMaxRetries) {
                 retryCount++;
-                const delayMs = 60000 * Math.pow(2, retryCount - 1);
+                const delayMs = isServiceUnavailable 
+                  ? 4000 * retryCount // 4s, 8s, 12s for temporary 503 high-demand spikes
+                  : 60000 * Math.pow(2, retryCount - 1);
                 lastApiCallTime = Date.now(); 
 
-                for (let s = delayMs / 1000; s > 0; s--) {
+                for (let s = Math.ceil(delayMs / 1000); s > 0; s--) {
                     if (shouldStopRef.current) break;
-                    setStatusMessage(`Quota hit (429). Retrying in ${s}s...`);
+                    setStatusMessage(isServiceUnavailable
+                      ? `Google high demand (503). Retrying in ${s}s (Attempt ${retryCount}/${MAX_RETRIES})...`
+                      : `Quota hit (429). Retrying in ${s}s...`
+                    );
                     await new Promise(r => setTimeout(r, 1000));
                 }
             } else {
@@ -754,13 +959,15 @@ const App: React.FC = () => {
         setStatusMessage("⛔ Process Aborted: Daily Limit Reached.");
         setShowAbortModal(true);
     } else {
-        const finishMsg = shouldStopRef.current ? "Stopped by user." : "Queue processing finished.";
+        const finishMsg = shouldStopRef.current ? "Stopped by user." : "Job analysis finished.";
         setStatusMessage(finishMsg);
         setTimeout(() => {
           setStatusMessage(prev => prev === finishMsg ? "" : prev);
         }, 4000);
     }
   }, []);
+
+  processQueueRef.current = processQueue;
 
   const handleResumeSession = async () => {
     const handles = Object.values(directoryHandlesRef.current || {});
@@ -795,6 +1002,9 @@ const App: React.FC = () => {
   };
 
   const handleRetryVideo = useCallback(async (video: VideoFile) => {
+    if (video.groupId) {
+      setActiveJobGroupId(video.groupId);
+    }
     priorityVideoIdRef.current = video.id;
 
     // Reset video status to PENDING and clear previous error & analysis
@@ -810,13 +1020,14 @@ const App: React.FC = () => {
     });
 
     if (!isProcessingRef.current) {
-      setTimeout(() => processQueue(), 50);
+      setTimeout(() => processQueue(video.groupId), 50);
     }
   }, [processQueue]);
 
   const handleRetryGroup = useCallback(async (groupId: string, groupVideos: VideoFile[]) => {
     if (isProcessingRef.current) return;
 
+    setActiveJobGroupId(groupId);
     priorityGroupIdRef.current = groupId;
 
     // Reset all videos in this group to PENDING and clear previous errors & analysis
@@ -831,7 +1042,7 @@ const App: React.FC = () => {
       return next;
     });
 
-    setTimeout(() => processQueue(), 50);
+    setTimeout(() => processQueue(groupId), 50);
   }, [processQueue]);
 
   const handleDeleteGroup = useCallback(async (groupId: string, groupDisplayName: string, groupVideos: VideoFile[]) => {
@@ -852,6 +1063,7 @@ const App: React.FC = () => {
     const remainingVideos = videoFilesRef.current.filter(v => !idsToDelete.has(v.id) && v.groupId !== groupId);
     setVideoFiles(remainingVideos);
     videoFilesRef.current = remainingVideos;
+    setActiveJobGroupId(prev => prev === groupId ? null : prev);
 
     // Clean up collapsedFolders and custom names
     removeCustomGroupName(groupId);
@@ -972,7 +1184,7 @@ const App: React.FC = () => {
             if (savedSession.isProcessing) {
               setStatusMessage("Resuming analysis after refresh...");
               setTimeout(() => {
-                if (!isCancelled) processQueue();
+                if (!isCancelled && processQueueRef.current) processQueueRef.current();
               }, 300);
             } else {
               setStatusMessage("Saved session restored.");
@@ -1004,7 +1216,7 @@ const App: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [processQueue]);
+  }, []);
 
   const pendingCount = videoFiles.filter(v => v.status === ProcessingStatus.PENDING).length;
   const completedCount = videoFiles.filter(v => v.status === ProcessingStatus.COMPLETED).length;
@@ -1065,6 +1277,8 @@ const App: React.FC = () => {
         const lastSlash = normalized.lastIndexOf('/');
         if (lastSlash !== -1) {
           folder = normalized.substring(0, lastSlash);
+        } else if (video.parentFolderName) {
+          folder = video.parentFolderName;
         }
       }
 
@@ -1154,6 +1368,22 @@ const App: React.FC = () => {
     return result;
   }, [videoFiles, directoryName]);
 
+  // Active / Last Job Group: tracks the latest uploaded or active folder group
+  const lastJobGroup = useMemo(() => {
+    if (folderGroups.length === 0) return null;
+    if (activeJobGroupId) {
+      const found = folderGroups.find(g => g.groupId === activeJobGroupId);
+      if (found) return found;
+    }
+    return folderGroups[0];
+  }, [folderGroups, activeJobGroupId]);
+
+  // Metrics specifically for the last upload / active job (non-compounded)
+  const jobFoundCount = lastJobGroup ? lastJobGroup.total : totalCount;
+  const jobCompletedCount = lastJobGroup ? lastJobGroup.completed : completedCount;
+  const jobErrorCount = lastJobGroup ? lastJobGroup.errors : errorCount;
+  const jobPendingCount = lastJobGroup ? lastJobGroup.pending : pendingCount;
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-6 flex flex-col items-center">
       
@@ -1236,6 +1466,15 @@ const App: React.FC = () => {
         // @ts-ignore
         webkitdirectory="" 
         directory="" 
+      />
+
+      <input 
+        type="file" 
+        ref={filesInputRef} 
+        onChange={handleFallbackFilesInputChange}
+        className="hidden"
+        multiple
+        accept="video/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.wmv" 
       />
 
       <header className="w-full max-w-5xl mb-8 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-6">
@@ -1361,92 +1600,120 @@ const App: React.FC = () => {
                    {videoFiles.length > 0 ? 'Add Folder' : 'Select Folder'}
                  </button>
 
-                 {!isProcessing ? (
-                   <button
-                     onClick={processQueue}
-                     disabled={pendingCount === 0 && errorCount === 0}
-                     className={`flex items-center gap-2 px-5 py-3 rounded-lg font-medium transition-all shadow-lg ${
-                       (pendingCount > 0 || errorCount > 0)
-                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:shadow-purple-500/25 text-white cursor-pointer' 
-                         : 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                     }`}
-                   >
-                     <Play className="w-5 h-5" />
-                     {errorCount > 0 && pendingCount === 0 ? 'Retry Errors' : `Start Analysis (${pendingCount})`}
-                   </button>
-                 ) : (
-                   <button
-                     onClick={stopProcessing}
-                     className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium transition-all shadow-lg bg-red-500/80 hover:bg-red-600 text-white border border-red-500 cursor-pointer"
-                   >
-                     <Square className="w-4 h-4 fill-current" />
-                     Stop Analysis
-                   </button>
-                 )}
-
                  <button
-                   onClick={handleExportAll}
-                   disabled={completedCount === 0 || isExporting}
-                   className="flex items-center gap-2 px-5 py-3 bg-cyan-800 hover:bg-cyan-700 text-cyan-100 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                   onClick={handleSelectFiles}
+                   disabled={isProcessing}
+                   className="flex items-center gap-2 px-5 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                   title="Select individual video files"
                  >
-                    {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                    Export All (ZIP)
+                   <FileVideo className="w-5 h-5 text-blue-400" />
+                   {videoFiles.length > 0 ? 'Add Files' : 'Select Files'}
                  </button>
-               </div>
 
-                {/* Status Message Area */}
-                <div className="h-6 flex items-center">
-                   {statusMessage && (
-                     <div className={`flex items-center gap-2 text-xs ${
-                       statusMessage.includes('Aborted') 
-                         ? 'text-red-400 font-bold' 
-                         : isProcessing || isExporting
-                           ? 'text-purple-300 animate-pulse'
-                           : statusMessage.includes('Permission') || statusMessage.includes('Re-authorization')
-                             ? 'text-amber-300'
-                             : 'text-emerald-300'
-                     }`}>
-                       {statusMessage.includes('Aborted') ? (
-                         <Ban className="w-3.5 h-3.5 text-red-400" />
-                       ) : isProcessing || isExporting ? (
-                         <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                       ) : statusMessage.includes('Permission') || statusMessage.includes('Re-authorization') ? (
-                         <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                       ) : (
-                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  {!isProcessing ? (
+                    <button
+                      onClick={() => processQueue(lastJobGroup?.groupId)}
+                      disabled={jobPendingCount === 0 && jobErrorCount === 0}
+                      className={`flex items-center gap-2.5 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
+                        (jobPendingCount > 0 || jobErrorCount > 0)
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white border-2 border-blue-400 hover:border-blue-300 shadow-blue-500/25 active:scale-95 cursor-pointer' 
+                          : 'bg-slate-800 text-slate-500 border-2 border-slate-700 cursor-not-allowed'
+                      }`}
+                    >
+                      <Play className={`w-5 h-5 ${(jobPendingCount > 0 || jobErrorCount > 0) ? 'fill-white text-white' : 'text-slate-500 fill-slate-500'}`} />
+                      {jobErrorCount > 0 && jobPendingCount === 0 ? 'Retry Errors' : `Start Analysis (${jobPendingCount})`}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopProcessing}
+                      className="flex items-center gap-2.5 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg bg-red-600 hover:bg-red-500 text-white border-2 border-red-400 hover:border-red-300 shadow-red-500/25 active:scale-95 cursor-pointer"
+                    >
+                      <Square className="w-4 h-4 fill-white text-white" />
+                      Stop Analysis
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleExportAll}
+                    disabled={completedCount === 0 || isExporting}
+                    className="flex items-center gap-2 px-5 py-3 bg-cyan-800 hover:bg-cyan-700 text-cyan-100 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                     {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                     Export All (ZIP)
+                  </button>
+                </div>
+
+                 {/* Status Message Area */}
+                 <div className="h-6 flex items-center">
+                    {statusMessage && (
+                      <div className={`flex items-center gap-2 text-xs ${
+                        statusMessage.includes('Aborted') 
+                          ? 'text-red-400 font-bold' 
+                          : isProcessing || isExporting
+                            ? 'text-purple-300 animate-pulse'
+                            : statusMessage.includes('Permission') || statusMessage.includes('Re-authorization')
+                              ? 'text-amber-300'
+                              : 'text-emerald-300'
+                      }`}>
+                        {statusMessage.includes('Aborted') ? (
+                          <Ban className="w-3.5 h-3.5 text-red-400" />
+                        ) : isProcessing || isExporting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                        ) : statusMessage.includes('Permission') || statusMessage.includes('Re-authorization') ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        )}
+                        {statusMessage}
+                      </div>
+                    )}
+                 </div>
+                
+                 {/* Stats: Found, Done, Errors, and Requests for Last Upload / Active Job */}
+                 <div className="flex flex-col gap-1.5 mt-auto">
+                   {folderGroups.length > 0 && (
+                     <div className="flex items-center justify-between text-[11px] px-1 text-slate-400">
+                       <div className="flex items-center gap-1.5 truncate">
+                         <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Job:</span>
+                         <span className="font-bold text-purple-300 truncate max-w-[200px]" title={lastJobGroup?.displayName || 'Current'}>
+                           {lastJobGroup ? (lastJobGroup.displayName || lastJobGroup.folderName) : 'Current'}
+                         </span>
+                       </div>
+                       {folderGroups.length > 1 && (
+                         <span className="text-slate-500 font-mono text-[10px]" title="Total across all folder groups in queue">
+                           Total Queue: {completedCount}/{totalCount}
+                         </span>
                        )}
-                       {statusMessage}
                      </div>
                    )}
-                </div>
-               
-                {/* Stats: Found, Done, Errors, and Requests */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-auto">
-                   <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
-                     <div className="text-2xl sm:text-3xl font-extrabold text-slate-100 leading-none">{totalCount}</div>
-                     <div className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-normal whitespace-nowrap">Found</div>
+
+                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                      <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
+                        <div className="text-2xl sm:text-3xl font-extrabold text-slate-100 leading-none">{jobFoundCount}</div>
+                        <div className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-normal whitespace-nowrap">Found</div>
+                      </div>
+                      <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
+                        <div className="text-2xl sm:text-3xl font-extrabold text-green-400 leading-none">{jobCompletedCount}</div>
+                        <div className="text-[11px] font-semibold text-green-500/80 mt-1 uppercase tracking-normal whitespace-nowrap">Done</div>
+                      </div>
+                      <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
+                        <div className="text-2xl sm:text-3xl font-extrabold text-red-400 leading-none">{jobErrorCount}</div>
+                        <div className="text-[11px] font-semibold text-red-400/80 mt-1 uppercase tracking-normal whitespace-nowrap">Errors</div>
+                      </div>
+                      <button
+                        onClick={() => setShowQuotaModal(true)}
+                        className="bg-slate-900/60 hover:bg-purple-950/40 p-3 sm:p-3.5 rounded-xl border border-purple-700/50 hover:border-purple-500/80 text-center transition-all cursor-pointer group flex flex-col items-center justify-center min-h-[74px] shadow-sm hover:shadow-purple-950/30 active:scale-95"
+                        title={`Processed ${quotaData.requestsToday} API requests today (${batchTotalTokens > 0 ? `${(batchTotalTokens / 1000).toFixed(1)}k tokens` : '0 tokens'}). Click for detailed Quota & Token breakdown.`}
+                      >
+                        <div className="text-2xl sm:text-3xl font-extrabold text-purple-400 group-hover:text-purple-300 leading-none">
+                          {quotaData.requestsToday}
+                        </div>
+                        <div className="text-[11px] font-semibold text-purple-300/90 group-hover:text-purple-200 mt-1 tracking-normal whitespace-nowrap">
+                          Requests
+                        </div>
+                      </button>
                    </div>
-                   <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
-                     <div className="text-2xl sm:text-3xl font-extrabold text-green-400 leading-none">{completedCount}</div>
-                     <div className="text-[11px] font-semibold text-green-500/80 mt-1 uppercase tracking-normal whitespace-nowrap">Done</div>
-                   </div>
-                   <div className="bg-slate-900/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/60 text-center flex flex-col items-center justify-center min-h-[74px] shadow-sm">
-                     <div className="text-2xl sm:text-3xl font-extrabold text-red-400 leading-none">{errorCount}</div>
-                     <div className="text-[11px] font-semibold text-red-400/80 mt-1 uppercase tracking-normal whitespace-nowrap">Errors</div>
-                   </div>
-                   <button
-                     onClick={() => setShowQuotaModal(true)}
-                     className="bg-slate-900/60 hover:bg-purple-950/40 p-3 sm:p-3.5 rounded-xl border border-purple-700/50 hover:border-purple-500/80 text-center transition-all cursor-pointer group flex flex-col items-center justify-center min-h-[74px] shadow-sm hover:shadow-purple-950/30 active:scale-95"
-                     title={`Processed ${quotaData.requestsToday} API requests today (${batchTotalTokens > 0 ? `${(batchTotalTokens / 1000).toFixed(1)}k tokens` : '0 tokens'}). Click for detailed Quota & Token breakdown.`}
-                   >
-                     <div className="text-2xl sm:text-3xl font-extrabold text-purple-400 group-hover:text-purple-300 leading-none">
-                       {quotaData.requestsToday}
-                     </div>
-                     <div className="text-[11px] font-semibold text-purple-300/90 group-hover:text-purple-200 mt-1 tracking-normal whitespace-nowrap">
-                       Requests
-                     </div>
-                   </button>
-                </div>
+                 </div>
             </div>
 
             <div className="flex-[2] flex flex-col gap-2">
@@ -1534,9 +1801,25 @@ const App: React.FC = () => {
         {/* Video List Grouped per Folder */}
         <div className="space-y-6">
           {videoFiles.length === 0 ? (
-            <div className="text-center py-20 text-slate-600 border-2 border-dashed border-slate-800 rounded-2xl">
-              <FolderOpen className="w-16 h-16 mx-auto mb-4 opacity-20" />
-              <p className="text-lg">Select a directory to begin scanning for videos.</p>
+            <div className="text-center py-20 text-slate-600 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-4">
+              <FolderOpen className="w-16 h-16 opacity-20" />
+              <p className="text-lg">Select a folder or video files to begin analysis.</p>
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-1">
+                <button
+                  onClick={handleSelectDirectory}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Select Folder
+                </button>
+                <button
+                  onClick={handleSelectFiles}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors cursor-pointer"
+                >
+                  <FileVideo className="w-4 h-4" />
+                  Select Video Files
+                </button>
+              </div>
             </div>
           ) : (
             folderGroups.map((group) => {
@@ -1547,7 +1830,10 @@ const App: React.FC = () => {
                   className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-5 space-y-4 backdrop-blur-sm shadow-lg transition-all"
                 >
                   <div 
-                    onClick={() => toggleFolderCollapse(group.groupKey)}
+                    onClick={() => {
+                      setActiveJobGroupId(group.groupId);
+                      toggleFolderCollapse(group.groupKey);
+                    }}
                     className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 pb-3 border-b border-slate-700/50 cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-3 overflow-hidden min-w-0">
