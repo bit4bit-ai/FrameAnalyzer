@@ -6,7 +6,7 @@ import ModalDialog, { ModalDialogConfig } from './ModalDialog';
 interface KeywordManagerProps {
   dbKeywords: string[];
   onSaveToDb: (newKeywords: string[]) => Promise<void>;
-  onClearDb: () => Promise<void>;
+  onClearDb?: () => Promise<void>;
   isSaving: boolean;
 }
 
@@ -258,30 +258,6 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
     event.target.value = '';
   };
 
-  const handleClearDatabase = async () => {
-    if (dbKeywords.length === 0) return;
-    setDialogConfig({
-      isOpen: true,
-      type: 'confirm',
-      title: 'Erase Keywords Database',
-      message: `Are you sure you want to completely erase all ${dbKeywords.length.toLocaleString()} keywords from the database?`,
-      confirmText: 'Erase All',
-      cancelText: 'Cancel',
-      isDestructive: true,
-      onConfirm: async () => {
-        setDialogConfig(null);
-        await onClearDb();
-        setNotification({
-          type: 'info',
-          message: 'Database has been cleared.'
-        });
-      },
-      onCancel: () => {
-        setDialogConfig(null);
-      }
-    });
-  };
-
   return (
     <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex flex-col gap-4">
       {/* Bulk Paste Modal */}
@@ -529,17 +505,6 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
             <Download className="w-3.5 h-3.5" />
             Export JSON
           </button>
-
-          {dbKeywords.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearDatabase}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-red-400/80 hover:text-red-300 text-xs font-medium transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Clear DB
-            </button>
-          )}
 
           <button
             type="button"

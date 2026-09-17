@@ -12,16 +12,22 @@ interface SettingsModalProps {
 
 const AVAILABLE_MODELS = [
   {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    badge: 'Recommended: Stable & Rich',
+    description: 'Google’s primary production model. Rich, detailed descriptions with high server availability and 1,500 free requests/day.',
+  },
+  {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
-    badge: 'Recommended: High Volume',
-    description: 'Official replacement for flash-lite: ultra-fast, cost-effective, and built for high-throughput batch video analysis.',
+    badge: 'High Volume / Basic',
+    description: 'Official replacement for flash-lite: ultra-fast, but descriptions are shorter and simpler.',
   },
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
     badge: 'Balanced & High-Speed',
-    description: 'Foundational multimodal performance across routine, high-throughput stock footage reasoning.',
+    description: 'Foundational multimodal performance across routine, high-throughput stock footage reasoning (subject to temporary 503 load spikes).',
   },
   {
     id: 'gemini-3.6-flash',
