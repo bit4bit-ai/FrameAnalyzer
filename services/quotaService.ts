@@ -22,14 +22,14 @@ export interface ModelQuotaSpec {
 }
 
 export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
-  'gemini-2.5-flash': {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+  'gemini-3.6-flash': {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
     rpm: 15,
-    rpdFreeTier: 1500,
-    inputPricePerMillion: 0.30,
-    outputPricePerMillion: 2.50,
-    tierNote: 'Stable production Flash model: rich multimodal reasoning, high availability, and 1,500 free requests/day.',
+    rpdFreeTier: 50,
+    inputPricePerMillion: 0.75,
+    outputPricePerMillion: 3.75,
+    tierNote: 'Google recommended model: Best description quality. ~50 free RPD, or ~$0.10/100 videos on Pay-As-You-Go.',
     isRecommendedForVolume: true,
   },
   'gemini-3.5-flash-lite': {
@@ -49,17 +49,8 @@ export const KNOWN_MODEL_QUOTAS: Record<string, ModelQuotaSpec> = {
     rpdFreeTier: 1500,
     inputPricePerMillion: 0.30,
     outputPricePerMillion: 1.20,
-    tierNote: 'High-throughput stock footage reasoning with foundational multimodal speed.',
+    tierNote: 'High-throughput stock footage reasoning with foundational multimodal speed (may see temporary 503 load spikes).',
     isRecommendedForVolume: true,
-  },
-  'gemini-3.6-flash': {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    rpm: 15,
-    rpdFreeTier: 20,
-    inputPricePerMillion: 0.30,
-    outputPricePerMillion: 1.20,
-    tierNote: 'Deep reasoning model. Google enforces a strict ceiling of ~20 free requests/day.',
   },
   'gemini-3.7-flash': {
     id: 'gemini-3.7-flash',
