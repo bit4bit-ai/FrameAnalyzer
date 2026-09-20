@@ -3,7 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 const API_KEY_STORAGE_KEY = 'frame_analyzer_gemini_api_key';
 const MODEL_STORAGE_KEY = 'frame_analyzer_gemini_model';
 
-export const DEFAULT_MODEL = 'gemini-3.5-flash';
+export const DEFAULT_MODEL = 'auto-cascade';
+export const AUTO_CASCADE_MODEL_ID = 'auto-cascade';
 
 export interface AppSettings {
   apiKey: string;
@@ -84,7 +85,10 @@ export const testGeminiApiKey = async (apiKey: string, modelToTest?: string): Pr
     return { success: false, message: 'API key cannot be empty.' };
   }
 
-  const model = (modelToTest || getActiveModel() || DEFAULT_MODEL).trim();
+  let model = (modelToTest || getActiveModel() || DEFAULT_MODEL).trim();
+  if (model === 'auto-cascade') {
+    model = 'gemini-3.5-flash-lite';
+  }
 
   try {
     const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
