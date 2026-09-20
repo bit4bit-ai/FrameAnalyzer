@@ -86,6 +86,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave, onRetry }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+            {video.modelUsed && video.status === ProcessingStatus.COMPLETED && (
+              <div 
+                className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-950/60 border border-blue-700/50 text-blue-300 flex items-center gap-1.5 cursor-help"
+                title={`Processed with Google Gemini model: ${video.modelUsed}`}
+              >
+                <BrainCircuit className="w-3 h-3 text-blue-400" />
+                <span>{video.modelUsed.replace('gemini-', '')}</span>
+              </div>
+            )}
             {video.usage && video.status === ProcessingStatus.COMPLETED && (
               <div 
                 className="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-950/50 border border-purple-700/50 text-purple-300 flex items-center gap-1 cursor-help"

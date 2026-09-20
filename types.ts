@@ -13,6 +13,7 @@ export interface VideoFile {
   screenshots: string[]; // Base64 strings for UI
   analysisResult?: string;
   error?: string;
+  modelUsed?: string; // Model used to generate the analysis (e.g. gemini-3.7-flash)
   usage?: {
     promptTokens: number;
     candidateTokens: number;

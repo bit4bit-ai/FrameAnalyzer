@@ -870,6 +870,7 @@ const App: React.FC = () => {
             updateStatus(ProcessingStatus.COMPLETED, { 
               analysisResult: analysis,
               usage: usage,
+              modelUsed: activeModel,
               error: undefined,
             });
             isVideoComplete = true; 
