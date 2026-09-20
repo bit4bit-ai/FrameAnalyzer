@@ -16,6 +16,14 @@ export default defineConfig(({ mode }) => {
         react(),
         {
           name: 'keywords-api',
+          buildStart() {
+            const pubDir = path.resolve(__dirname, 'public');
+            const pubKw = path.resolve(pubDir, 'keywords.json');
+            if (fs.existsSync(keywordsFilePath)) {
+              if (!fs.existsSync(pubDir)) fs.mkdirSync(pubDir, { recursive: true });
+              fs.copyFileSync(keywordsFilePath, pubKw);
+            }
+          },
           configureServer(server) {
             server.middlewares.use('/api/keywords', (req, res, next) => {
               if (req.method === 'GET') {
