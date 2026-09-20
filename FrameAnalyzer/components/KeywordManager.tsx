@@ -73,17 +73,34 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   const [notification, setNotification] = useState<{ type: 'success' | 'warning' | 'info'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Local editable copy of database keywords to allow deletions before saving
+  const [editableDbKeywords, setEditableDbKeywords] = useState<string[]>(dbKeywords);
+
+  // Detect whether keywords have been deleted compared to the saved database
+  const deletedDbKeywordsCount = useMemo(() => {
+    return Math.max(0, dbKeywords.length - editableDbKeywords.length);
+  }, [dbKeywords.length, editableDbKeywords.length]);
+
+  const hasDbChanges = deletedDbKeywordsCount > 0;
+
+  // Sync with dbKeywords from props when no unsaved deletions exist
+  useEffect(() => {
+    if (!hasDbChanges) {
+      setEditableDbKeywords(dbKeywords);
+    }
+  }, [dbKeywords, hasDbChanges]);
+
   // All known keywords (staged + database) to prevent exact duplicates
   const allExistingKeywords = useMemo(() => {
-    return [...dbKeywords, ...stagedKeywords];
-  }, [dbKeywords, stagedKeywords]);
+    return [...editableDbKeywords, ...stagedKeywords];
+  }, [editableDbKeywords, stagedKeywords]);
 
   // Database search filter for viewer
   const filteredDbKeywords = useMemo(() => {
-    if (!dbSearchQuery.trim()) return dbKeywords;
+    if (!dbSearchQuery.trim()) return editableDbKeywords;
     const q = dbSearchQuery.toLowerCase().trim();
-    return dbKeywords.filter(k => k.toLowerCase().includes(q));
-  }, [dbKeywords, dbSearchQuery]);
+    return editableDbKeywords.filter(k => k.toLowerCase().includes(q));
+  }, [editableDbKeywords, dbSearchQuery]);
 
   const displayedDbKeywords = useMemo(() => {
     return filteredDbKeywords.slice(0, visibleDbCount);
@@ -173,7 +190,7 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
     if (toUpload.length === 0) return;
 
     try {
-      const mergedDb = [...dbKeywords, ...toUpload];
+      const mergedDb = [...editableDbKeywords, ...toUpload];
       await onSaveToDb(mergedDb);
 
       // IMMEDIATELY CLEAR STAGING AREA AND TEXT FIELD
@@ -195,6 +212,35 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
       setNotification({
         type: 'warning',
         message: `Failed to save to database: ${err.message || 'Unknown error'}`
+      });
+    }
+  };
+
+  const handleDeleteDbKeyword = (keywordToDelete: string) => {
+    setEditableDbKeywords(prev => prev.filter(k => k.toLowerCase() !== keywordToDelete.toLowerCase()));
+  };
+
+  const handleRevertDbChanges = () => {
+    setEditableDbKeywords(dbKeywords);
+    setNotification({
+      type: 'info',
+      message: 'Pending database deletions have been discarded.'
+    });
+  };
+
+  const handleSaveDbDeletions = async () => {
+    if (!hasDbChanges || isSaving) return;
+
+    try {
+      await onSaveToDb(editableDbKeywords);
+      setNotification({
+        type: 'success',
+        message: `✓ Successfully saved changes to database. Removed ${deletedDbKeywordsCount.toLocaleString()} keyword(s).`
+      });
+    } catch (err: any) {
+      setNotification({
+        type: 'warning',
+        message: `Failed to save changes to database: ${err.message || 'Unknown error'}`
       });
     }
   };
@@ -491,16 +537,19 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-emerald-400" />
           <span className="text-xs text-slate-300">
-            Database Status: <strong className="text-emerald-400 font-mono">{dbKeywords.length.toLocaleString()} keywords</strong> saved in <code className="text-purple-300 text-[11px]">keywords.json</code>
+            Database Status: <strong className="text-emerald-400 font-mono">{editableDbKeywords.length.toLocaleString()} keywords</strong> saved in <code className="text-purple-300 text-[11px]">keywords.json</code>
+            {hasDbChanges && (
+              <span className="text-amber-400 ml-1 font-semibold">({deletedDbKeywordsCount} unsaved deletion{deletedDbKeywordsCount > 1 ? 's' : ''})</span>
+            )}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportKeywordsToFile(dbKeywords)}
-            disabled={dbKeywords.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors disabled:opacity-40"
+            onClick={() => exportKeywordsToFile(editableDbKeywords)}
+            disabled={editableDbKeywords.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors disabled:opacity-40 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             Export JSON
@@ -509,10 +558,16 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
           <button
             type="button"
             onClick={() => setShowDbViewer(prev => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-slate-700/60 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors border border-slate-600"
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors border cursor-pointer ${
+              showDbViewer
+                ? 'bg-slate-700 text-white border-slate-500'
+                : hasDbChanges
+                ? 'bg-amber-950/40 border-amber-600/50 text-amber-300 hover:bg-amber-900/50'
+                : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300 border-slate-600'
+            }`}
           >
             {showDbViewer ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {showDbViewer ? 'Hide DB List' : `View DB (${dbKeywords.length.toLocaleString()})`}
+            {showDbViewer ? 'Hide DB List' : `View DB (${editableDbKeywords.length.toLocaleString()})`}
           </button>
         </div>
       </div>
@@ -520,33 +575,78 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
       {/* Optional Database Keywords Viewer (Collapsible) */}
       {showDbViewer && (
         <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in">
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              Keywords currently active in Database:
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-emerald-400" />
+                Keywords in Database ({editableDbKeywords.length.toLocaleString()}):
+              </span>
+              {hasDbChanges && (
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-950/70 border border-amber-600/50 text-amber-300 font-mono">
+                  {deletedDbKeywordsCount} pending deletion
+                </span>
+              )}
+            </div>
 
-            <div className="relative max-w-xs flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
-              <input
-                type="text"
-                value={dbSearchQuery}
-                onChange={(e) => {
-                  setDbSearchQuery(e.target.value);
-                  setVisibleDbCount(PAGE_SIZE);
-                }}
-                placeholder="Search database keywords..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
-              />
-              {dbSearchQuery && (
+            <div className="flex items-center gap-2 flex-1 justify-end flex-wrap">
+              <div className="relative max-w-xs flex-1 min-w-[160px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                <input
+                  type="text"
+                  value={dbSearchQuery}
+                  onChange={(e) => {
+                    setDbSearchQuery(e.target.value);
+                    setVisibleDbCount(PAGE_SIZE);
+                  }}
+                  placeholder="Search database keywords..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+                />
+                {dbSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setDbSearchQuery('')}
+                    className="absolute right-2 top-1.5 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {hasDbChanges && (
                 <button
                   type="button"
-                  onClick={() => setDbSearchQuery('')}
-                  className="absolute right-2 top-1.5 text-slate-400 hover:text-white"
+                  onClick={handleRevertDbChanges}
+                  disabled={isSaving}
+                  className="px-2.5 py-1 text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                  title="Discard pending deletions and restore original database keywords"
                 >
-                  <X className="w-3 h-3" />
+                  Discard
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleSaveDbDeletions}
+                disabled={!hasDbChanges || isSaving}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm shrink-0 ${
+                  hasDbChanges
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400 cursor-pointer active:scale-95 animate-pulse'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-60'
+                }`}
+                title={hasDbChanges ? `Save deletions to database (${deletedDbKeywordsCount} deleted)` : 'No deletions to save (delete a keyword to activate)'}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Save to DB{hasDbChanges ? ` (${deletedDbKeywordsCount})` : ''}
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -558,16 +658,25 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
                 {displayedDbKeywords.map((kw, idx) => (
                   <span
                     key={`db-${kw}-${idx}`}
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-500 transition-all group"
                   >
-                    {kw}
+                    <span className="truncate max-w-[200px]">{kw}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDbKeyword(kw)}
+                      className="text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-full p-0.5 transition-colors focus:outline-none cursor-pointer"
+                      title={`Delete "${kw}" from database`}
+                      aria-label={`Delete ${kw}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </span>
                 ))}
                 {filteredDbKeywords.length > displayedDbKeywords.length && (
                   <button
                     type="button"
                     onClick={() => setVisibleDbCount(prev => prev + PAGE_SIZE)}
-                    className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-800/40"
+                    className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 cursor-pointer hover:bg-emerald-900/60 transition-colors"
                   >
                     + Show More ({(filteredDbKeywords.length - displayedDbKeywords.length).toLocaleString()})
                   </button>
