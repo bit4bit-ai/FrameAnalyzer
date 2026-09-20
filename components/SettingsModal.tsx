@@ -12,15 +12,21 @@ interface SettingsModalProps {
 
 const AVAILABLE_MODELS = [
   {
+    id: 'auto-cascade',
+    name: 'Auto-Switch Cascade (Smart Free Tier)',
+    badge: 'Recommended: 3.7 → 3.6 → 3.5 → Lite',
+    description: 'Maximizes quality across Google Free Tier: starts with Gemini 3.7 (first 20 req), auto-switches to 3.6 (next 20 req), then 3.5 (next 20 req), then 3.5 Flash-Lite (up to 1,500 req).',
+  },
+  {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    badge: 'Default: Recommended',
-    description: 'Foundational multimodal performance. 1,500 RPD daily quota, but subject to strict per-minute token (TPM) limits on Google Free Tier.',
+    badge: 'Standard (~20 Free RPD)',
+    description: 'Foundational multimodal performance. 1,500 RPD daily quota on paper, but subject to 20 RPD cap on unbilled Google AI Studio accounts.',
   },
   {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
-    badge: 'Recommended Free (1,500 RPD)',
+    badge: 'High-Volume Free (1,500 RPD)',
     description: 'Ultra-fast with 1,500 free requests/day on Google AI Studio Free Tier. Ideal for batch video processing.',
   },
   {
@@ -32,7 +38,7 @@ const AVAILABLE_MODELS = [
   {
     id: 'gemini-3.7-flash',
     name: 'Gemini 3.7 Flash',
-    badge: 'Thinking Model',
+    badge: 'Thinking Model (~20 Free RPD)',
     description: 'Advanced reasoning model with thinking capabilities for complex, nuanced visual scenes.',
   },
 ];

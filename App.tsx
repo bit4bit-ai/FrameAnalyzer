@@ -44,7 +44,10 @@ import {
   recordApiCallUsage, 
   getTimeUntilPacificMidnight, 
   StoredDailyQuota, 
-  getModelSpec 
+  getModelSpec,
+  getEffectiveCascadeModel,
+  getNextCascadeModel,
+  markModelExhaustedToday 
 } from './services/quotaService';
 import { 
   FolderOpen, 
@@ -763,6 +766,9 @@ const App: React.FC = () => {
       let retryCount = 0;
       const MAX_RETRIES = 3;
       let isVideoComplete = false;
+      let activeModel = settingsRef.current.model === 'auto-cascade'
+        ? getEffectiveCascadeModel()
+        : settingsRef.current.model;
 
       // Retry loop for the current video
       while (!isVideoComplete && retryCount <= MAX_RETRIES) {
@@ -832,8 +838,8 @@ const App: React.FC = () => {
 
             // --- STEP 3: ANALYZE ---
             setStatusMessage(retryCount > 0 
-                ? `Retry ${retryCount}: Analyzing ${videoName}...`
-                : `Analyzing ${videoName}...`
+                ? `Retry ${retryCount} (${activeModel}): Analyzing ${videoName}...`
+                : `Analyzing ${videoName} (${activeModel})...`
             );
             updateStatus(ProcessingStatus.ANALYZING, { error: undefined });
             
@@ -845,14 +851,14 @@ const App: React.FC = () => {
               processedDescriptions, 
               keywordsRef.current,
               settingsRef.current.apiKey,
-              settingsRef.current.model
+              activeModel
             );
 
             const analysis = analysisResult.text;
             const usage = analysisResult.usage;
 
             // Track daily quota and token consumption
-            const updatedQuota = recordApiCallUsage(settingsRef.current.model, usage);
+            const updatedQuota = recordApiCallUsage(activeModel, usage);
             setQuotaData(updatedQuota);
             
             // Success!
@@ -914,14 +920,30 @@ const App: React.FC = () => {
             const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
             
             const isResourceExhausted = errorMessage.includes('RESOURCE_EXHAUSTED');
-            const isExplicitDailyQuota = isResourceExhausted && (
-              errorMessage.toLowerCase().includes('per day') ||
-              errorMessage.toLowerCase().includes('daily')
-            );
             const isServiceUnavailable = errorMessage.includes('503') || 
                                          errorMessage.includes('UNAVAILABLE') || 
                                          errorMessage.includes('high demand') ||
                                          errorMessage.includes('overloaded');
+
+            // --- AUTO-SWITCH CASCADE ON QUOTA EXHAUSTION ---
+            if (isResourceExhausted || (isServiceUnavailable && retryCount >= 1)) {
+              markModelExhaustedToday(activeModel);
+              const nextModel = getNextCascadeModel(activeModel);
+
+              if (nextModel) {
+                console.warn(`[Auto-Switch Cascade] Quota reached for ${activeModel}. Auto-switching to ${nextModel}...`);
+                setStatusMessage(`Quota reached on ${activeModel}. Auto-switching to ${nextModel}...`);
+                activeModel = nextModel;
+                retryCount = 0;
+                await new Promise(r => setTimeout(r, 1200));
+                continue;
+              }
+            }
+
+            const isExplicitDailyQuota = isResourceExhausted && (
+              errorMessage.toLowerCase().includes('per day') ||
+              errorMessage.toLowerCase().includes('daily')
+            );
             const isRateLimit = errorMessage.includes('429') || 
                                 errorMessage.includes('quota') || 
                                 isResourceExhausted;

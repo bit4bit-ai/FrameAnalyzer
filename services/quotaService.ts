@@ -95,6 +95,7 @@ export interface StoredDailyQuota {
   candidateTokensToday: number;
   totalTokensToday: number;
   modelBreakdown: Record<string, number>; // modelId -> count
+  exhaustedModelsToday?: string[]; // modelIds that returned 429/quota error today
 }
 
 const STORAGE_KEY = 'frame_analyzer_quota_stats';
@@ -164,6 +165,7 @@ export const loadStoredQuota = (): StoredDailyQuota => {
     candidateTokensToday: 0,
     totalTokensToday: 0,
     modelBreakdown: {},
+    exhaustedModelsToday: [],
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
@@ -211,3 +213,90 @@ export const calculateEstimatedCost = (
   const outputCost = (candidateTokens / 1_000_000) * spec.outputPricePerMillion;
   return inputCost + outputCost;
 };
+
+export interface CascadeTier {
+  model: string;
+  name: string;
+  maxRequests: number;
+  badge: string;
+}
+
+export const CASCADE_MODEL_TIERS: CascadeTier[] = [
+  { model: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', maxRequests: 20, badge: 'Phase 1 (Thinking & Depth)' },
+  { model: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', maxRequests: 20, badge: 'Phase 2 (Deep Reasoning)' },
+  { model: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', maxRequests: 20, badge: 'Phase 3 (Foundational Vision)' },
+  { model: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', maxRequests: 1500, badge: 'Phase 4 (High-Volume Free Tier)' },
+];
+
+/**
+ * Mark a model as exhausted for the current Pacific day so the auto-cascade skips it
+ */
+export const markModelExhaustedToday = (modelId: string): void => {
+  const quota = loadStoredQuota();
+  if (!quota.exhaustedModelsToday) {
+    quota.exhaustedModelsToday = [];
+  }
+  if (!quota.exhaustedModelsToday.includes(modelId)) {
+    quota.exhaustedModelsToday.push(modelId);
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(quota));
+  } catch (err) {
+    console.warn("Failed to save exhausted model:", err);
+  }
+};
+
+/**
+ * Determine the best available model in the cascade chain based on today's usage and exhaustion
+ */
+export const getEffectiveCascadeModel = (preferredModel?: string): string => {
+  const quota = loadStoredQuota();
+  const exhausted = new Set(quota.exhaustedModelsToday || []);
+
+  // If a specific non-cascade model was selected and hasn't hit its limit:
+  if (preferredModel && preferredModel !== 'auto-cascade') {
+    const tier = CASCADE_MODEL_TIERS.find(t => t.model === preferredModel);
+    const count = quota.modelBreakdown[preferredModel] || 0;
+    const maxReq = tier ? tier.maxRequests : 20;
+    if (!exhausted.has(preferredModel) && count < maxReq) {
+      return preferredModel;
+    }
+  }
+
+  // Iterate down the cascade chain
+  for (const tier of CASCADE_MODEL_TIERS) {
+    const count = quota.modelBreakdown[tier.model] || 0;
+    if (!exhausted.has(tier.model) && count < tier.maxRequests) {
+      return tier.model;
+    }
+  }
+
+  return 'gemini-3.5-flash-lite';
+};
+
+/**
+ * When a model hits quota or fails, get the next model down the cascade
+ */
+export const getNextCascadeModel = (currentModel: string): string | null => {
+  const quota = loadStoredQuota();
+  const exhausted = new Set(quota.exhaustedModelsToday || []);
+  exhausted.add(currentModel);
+
+  const currentIndex = CASCADE_MODEL_TIERS.findIndex(t => t.model === currentModel);
+  const startIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
+
+  for (let i = startIndex; i < CASCADE_MODEL_TIERS.length; i++) {
+    const tier = CASCADE_MODEL_TIERS[i];
+    const count = quota.modelBreakdown[tier.model] || 0;
+    if (!exhausted.has(tier.model) && count < tier.maxRequests) {
+      return tier.model;
+    }
+  }
+
+  if (currentModel !== 'gemini-3.5-flash-lite') {
+    return 'gemini-3.5-flash-lite';
+  }
+
+  return null;
+};
+
