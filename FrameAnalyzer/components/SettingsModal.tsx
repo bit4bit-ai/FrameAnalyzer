@@ -14,8 +14,8 @@ const AVAILABLE_MODELS = [
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    badge: 'Standard (~20 Free RPD)',
-    description: 'Foundational multimodal performance and rich descriptions. Free Tier is limited to ~20 requests/day by Google (unlimited on Pay-as-you-go).',
+    badge: 'Default: Recommended',
+    description: 'Foundational multimodal performance. 1,500 RPD daily quota, but subject to strict per-minute token (TPM) limits on Google Free Tier.',
   },
   {
     id: 'gemini-3.5-flash-lite',

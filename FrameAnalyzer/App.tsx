@@ -1405,9 +1405,12 @@ const App: React.FC = () => {
                    <Ban className="w-10 h-10" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white">Daily Quota Exceeded</h2>
+                  <h2 className="text-xl font-bold text-white">Google Rate Limit / Quota Exceeded</h2>
                   <p className="text-slate-300 text-sm leading-relaxed">
-                    Google returned a <strong>RESOURCE_EXHAUSTED</strong> error. You have processed <strong>{quotaData.requestsToday} requests today</strong>, reaching the Free Tier daily limit for <code className="bg-slate-900 px-1.5 py-0.5 rounded text-red-300 font-mono text-xs">{settings.model}</code>.
+                    Google returned a <strong>RESOURCE_EXHAUSTED</strong> (HTTP 429) response. You have processed <strong>{quotaData.requestsToday} requests today</strong> using <code className="bg-slate-900 px-1.5 py-0.5 rounded text-red-300 font-mono text-xs">{settings.model}</code>.
+                  </p>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    While {settings.model} has a 1,500 daily requests quota on paper, Google's Free Tier also enforces strict per-minute request (15 RPM) and token limits (TPM) when sending multiple high-res frame screenshots in quick succession.
                   </p>
                 </div>
                 
@@ -1415,33 +1418,43 @@ const App: React.FC = () => {
                    <div className="flex items-center justify-between text-amber-300 font-medium">
                      <span className="flex items-center gap-1.5">
                        <Clock className="w-3.5 h-3.5" />
-                       Quota Reset Countdown:
+                       Daily Reset Countdown:
                      </span>
                      <span className="font-mono font-bold">{timeUntilReset.formatted}</span>
                    </div>
                    <span className="text-slate-400 text-[11px] leading-relaxed">
-                     Google daily limits reset at Midnight Pacific Time (00:00 PT / 09:00 CET).
+                     Daily limits reset at Midnight Pacific Time (00:00 PT / 09:00 CET). If this was only a 1-minute burst/token limit, you can simply wait 60 seconds and resume.
                    </span>
                 </div>
 
-                {/* Instant switch recommendation if on low-quota model */}
-                {settings.model !== 'gemini-3.5-flash-lite' && (
-                  <div className="w-full p-3.5 bg-blue-950/40 border border-blue-500/40 rounded-xl text-left space-y-2">
-                    <p className="text-xs text-blue-200 font-medium leading-relaxed">
-                      💡 <strong>Need to process more videos today?</strong> Switch to <strong>Gemini 3.5 Flash-Lite</strong>, which has <strong>1,500 free requests per day</strong>!
-                    </p>
+                <div className="w-full space-y-2">
+                  {/* Option 1: Wait and try resuming */}
+                  <button
+                    onClick={() => {
+                      setShowAbortModal(false);
+                      processQueue();
+                    }}
+                    className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-300" />
+                    Cooldown Done? Resume Analysis
+                  </button>
+
+                  {/* Option 2: Switch to Flash-Lite */}
+                  {settings.model !== 'gemini-3.5-flash-lite' && (
                     <button
                       onClick={async () => {
                         await handleSaveSettings(settings.apiKey, 'gemini-3.5-flash-lite');
                         setShowAbortModal(false);
+                        processQueue();
                       }}
                       className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      Switch to Gemini 3.5 Flash-Lite (1,500 RPD)
+                      <span>Switch to Flash-Lite & Resume</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="flex gap-2 w-full pt-1">
                   <button 
