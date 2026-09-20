@@ -1,3 +1,15 @@
+---
+title: FrameAnalyzer
+emoji: 🎬
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Automated batch video frame analysis & metadata generator using Gemini
+---
+
 # FrameAnalyzer (Video Frame Analyst)
 
 **FrameAnalyzer** is an automated batch video frame analysis and metadata generation application engineered specifically for professional stock footage contributors (Getty Images, iStock, Shutterstock, Adobe Stock, Pond5, etc.). 
