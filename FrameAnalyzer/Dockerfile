@@ -22,6 +22,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy compiled assets from builder
 COPY --from=builder --chown=1000:1000 /app/dist /usr/share/nginx/html
+COPY --from=builder --chown=1000:1000 /app/keywords.json /usr/share/nginx/html/keywords.json
 
 # Grant permissions to user 1000
 RUN chown -R 1000:1000 /usr/share/nginx/html /var/log/nginx && \

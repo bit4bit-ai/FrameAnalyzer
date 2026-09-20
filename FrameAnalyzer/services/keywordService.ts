@@ -5,34 +5,51 @@ const STORAGE_KEY = 'frame_analyzer_keywords';
  * or fallback to localStorage if running offline/without API.
  */
 export const loadKeywords = async (): Promise<string[]> => {
+  // 1. Try local dev API middleware first (when running locally with Vite dev server)
   try {
     const response = await fetch('/api/keywords', {
       headers: { 'Accept': 'application/json' },
     });
     if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        } catch {
-          // localStorage quota exceeded (e.g. for 80k+ items), ignore safely
-        }
+        } catch {}
         return data;
       }
     }
   } catch (err) {
-    console.warn('Could not fetch from /api/keywords, falling back to localStorage', err);
+    // Expected when running outside Vite dev server (e.g. Hugging Face / Docker)
   }
 
-  // Fallback to localStorage
+  // 2. Check localStorage (returns user's customized keywords if they added or removed items)
   try {
     const cached = localStorage.getItem(STORAGE_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (err) {
     console.error('Failed to parse cached keywords from localStorage', err);
+  }
+
+  // 3. Fallback to static bundled /keywords.json (for Hugging Face / Docker production)
+  try {
+    const response = await fetch('/keywords.json', {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch {}
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch static /keywords.json', err);
   }
 
   return [];
