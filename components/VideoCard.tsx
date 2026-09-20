@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { VideoFile, ProcessingStatus } from '../types';
-import { formatThreeLevelPath } from '../services/fileSystem';
-import { Loader2, CheckCircle, AlertCircle, FileVideo, Image as ImageIcon, BrainCircuit, Save, Ban, RotateCcw, Play } from 'lucide-react';
+import { formatThreeLevelPath, downloadAnalysisText } from '../services/fileSystem';
+import { Loader2, CheckCircle, AlertCircle, FileVideo, Image as ImageIcon, BrainCircuit, Save, Download, Copy, Check, FileText, RotateCcw, Play } from 'lucide-react';
 
 interface VideoCardProps {
   video: VideoFile;
@@ -30,6 +30,7 @@ const statusIcons = {
 const VideoCard: React.FC<VideoCardProps> = ({ video, onSave, onRetry }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const StatusIcon = statusIcons[video.status];
   const isProcessing = [
@@ -37,6 +38,22 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave, onRetry }) => {
     ProcessingStatus.SAVING,
     ProcessingStatus.ANALYZING
   ].includes(video.status);
+
+  const handleCopyText = async () => {
+    if (!video.analysisResult) return;
+    try {
+      await navigator.clipboard.writeText(video.analysisResult);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.warn("Clipboard copy failed", err);
+    }
+  };
+
+  const handleDownloadTxt = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    downloadAnalysisText(video);
+  };
 
   const handleSaveClick = async () => {
     if (!onSave) return;
@@ -151,43 +168,73 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onSave, onRetry }) => {
           </div>
           
           {/* Action Area */}
-          <div className="flex justify-end gap-2">
-            {onSave ? (
-              // Save to Disk Mode
+          <div className="flex items-center justify-end gap-2 flex-wrap pt-1">
+            {/* Copy Text to Clipboard */}
+            <button
+              type="button"
+              onClick={handleCopyText}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 transition-all cursor-pointer"
+              title="Copy title, description, and keywords to clipboard"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-300 font-semibold">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Copy Text</span>
+                </>
+              )}
+            </button>
+
+            {/* Download Text File Only */}
+            <button
+              type="button"
+              onClick={handleDownloadTxt}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 transition-all cursor-pointer"
+              title="Download analysis.txt"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-400" />
+              <span>Download TXT</span>
+            </button>
+
+            {/* Download ZIP (Text + 3 Keyframes) or Save Directly to Disk */}
+            {onSave && (
               <button
+                type="button"
                 onClick={handleSaveClick}
                 disabled={isSaving || saveSuccess}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   saveSuccess 
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                    : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-600'
+                    ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/50' 
+                    : 'bg-purple-900/50 hover:bg-purple-800/70 text-purple-200 border border-purple-700/60 hover:border-purple-500 shadow-sm'
                 }`}
+                title={video.parentHandle ? "Save analysis.txt and 3 keyframes directly into folder on disk" : "Download analysis.txt and 3 keyframes as a ZIP file"}
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Saving...
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                    <span>Saving...</span>
                   </>
                 ) : saveSuccess ? (
                   <>
-                    <CheckCircle className="w-3 h-3" />
-                    Saved to Disk
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{video.parentHandle ? "Saved to Disk" : "Downloaded!"}</span>
+                  </>
+                ) : video.parentHandle ? (
+                  <>
+                    <Save className="w-3.5 h-3.5 text-purple-300" />
+                    <span>Save to Disk</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-3 h-3" />
-                    Save Text & Images
+                    <Download className="w-3.5 h-3.5 text-purple-300" />
+                    <span>Download ZIP</span>
                   </>
                 )}
               </button>
-            ) : (
-               // Read Only Mode - Actions are now bulk only
-               video.status === ProcessingStatus.COMPLETED && (
-                 <div className="flex items-center gap-1.5 text-[10px] text-slate-500 opacity-60 cursor-help" title="Use the 'Export All' button at the top to save data.">
-                    <Ban className="w-3 h-3" />
-                    Single Save disabled (Use Bulk Export)
-                 </div>
-               )
             )}
           </div>
         </div>
