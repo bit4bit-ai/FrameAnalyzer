@@ -150,6 +150,13 @@ export const loadStoredQuota = (): StoredDailyQuota => {
     if (raw) {
       const parsed: StoredDailyQuota = JSON.parse(raw);
       if (parsed.pacificDate === currentPacificDate) {
+        // Sanitize exhaustedModelsToday: only models that genuinely reached limit (>=20) or gemini-3.5-flash remain locked
+        if (parsed.exhaustedModelsToday && Array.isArray(parsed.exhaustedModelsToday)) {
+          parsed.exhaustedModelsToday = parsed.exhaustedModelsToday.filter(m => {
+            const count = parsed.modelBreakdown?.[m] || 0;
+            return count >= 20 || m === 'gemini-3.5-flash';
+          });
+        }
         return parsed;
       }
     }
@@ -249,21 +256,11 @@ export const markModelExhaustedToday = (modelId: string): void => {
 /**
  * Determine the best available model in the cascade chain based on today's usage and exhaustion
  */
-export const getEffectiveCascadeModel = (preferredModel?: string): string => {
+export const getEffectiveCascadeModel = (): string => {
   const quota = loadStoredQuota();
   const exhausted = new Set(quota.exhaustedModelsToday || []);
 
-  // If a specific non-cascade model was selected and hasn't hit its limit:
-  if (preferredModel && preferredModel !== 'auto-cascade') {
-    const tier = CASCADE_MODEL_TIERS.find(t => t.model === preferredModel);
-    const count = quota.modelBreakdown[preferredModel] || 0;
-    const maxReq = tier ? tier.maxRequests : 20;
-    if (!exhausted.has(preferredModel) && count < maxReq) {
-      return preferredModel;
-    }
-  }
-
-  // Iterate down the cascade chain
+  // Always evaluate tiers in strict priority order (3.7 -> 3.6 -> 3.5 -> 3.5-lite)
   for (const tier of CASCADE_MODEL_TIERS) {
     const count = quota.modelBreakdown[tier.model] || 0;
     if (!exhausted.has(tier.model) && count < tier.maxRequests) {

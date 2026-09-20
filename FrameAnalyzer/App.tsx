@@ -718,9 +718,7 @@ const App: React.FC = () => {
     shouldStopRef.current = false;
     setIsProcessing(true);
     isProcessingRef.current = true;
-    const startingModel = settingsRef.current.model === 'auto-cascade'
-      ? getEffectiveCascadeModel()
-      : settingsRef.current.model;
+    const startingModel = getEffectiveCascadeModel();
     setStatusMessage(`Starting analysis (${startingModel})...`);
     setShowAbortModal(false);
 
@@ -769,9 +767,7 @@ const App: React.FC = () => {
       let retryCount = 0;
       const MAX_RETRIES = 3;
       let isVideoComplete = false;
-      let activeModel = settingsRef.current.model === 'auto-cascade'
-        ? getEffectiveCascadeModel()
-        : settingsRef.current.model;
+      let activeModel = getEffectiveCascadeModel();
 
       // Retry loop for the current video
       while (!isVideoComplete && retryCount <= MAX_RETRIES) {
