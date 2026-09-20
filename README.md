@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: Automated batch video frame analysis & metadata generator using Gemini
+short_description: Batch video frame & metadata generator
 ---
 
 # FrameAnalyzer (Video Frame Analyst)
