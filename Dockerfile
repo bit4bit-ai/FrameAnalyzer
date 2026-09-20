@@ -17,16 +17,15 @@ FROM nginx:alpine
 # Hugging Face Spaces runs containers with UID 1000
 RUN adduser -D -u 1000 appuser
 
-# Copy custom Nginx configuration for port 7860 & SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Redirect PID file to /tmp and set permissions for unprivileged execution
-RUN sed -i 's|/var/run/nginx.pid|/tmp/nginx.pid|g' /etc/nginx/nginx.conf && \
-    mkdir -p /var/cache/nginx /var/log/nginx /usr/share/nginx/html && \
-    chown -R 1000:1000 /var/cache/nginx /var/log/nginx /usr/share/nginx/html /etc/nginx/conf.d
+# Replace default Nginx configuration with our unprivileged standalone config
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy compiled assets from builder
 COPY --from=builder --chown=1000:1000 /app/dist /usr/share/nginx/html
+
+# Grant permissions to user 1000
+RUN chown -R 1000:1000 /usr/share/nginx/html /var/log/nginx && \
+    chmod -R 755 /usr/share/nginx/html
 
 USER 1000
 
