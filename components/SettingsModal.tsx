@@ -14,20 +14,20 @@ const AVAILABLE_MODELS = [
   {
     id: 'gemini-3.5-flash',
     name: 'Gemini 3.5 Flash',
-    badge: 'Default: Recommended',
-    description: 'Foundational multimodal performance, high quality video descriptions and high-throughput stock footage reasoning.',
-  },
-  {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    badge: 'Deep Multimodal Reasoning',
-    description: 'Google’s latest flash model with deep multimodal reasoning and rich description capabilities.',
+    badge: 'Standard (~20 Free RPD)',
+    description: 'Foundational multimodal performance and rich descriptions. Free Tier is limited to ~20 requests/day by Google (unlimited on Pay-as-you-go).',
   },
   {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
-    badge: 'High-Volume Free (1,500 RPD)',
-    description: 'Ultra-fast with 1,500 free requests/day, but produces simpler, more concise descriptions.',
+    badge: 'Recommended Free (1,500 RPD)',
+    description: 'Ultra-fast with 1,500 free requests/day on Google AI Studio Free Tier. Ideal for batch video processing.',
+  },
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    badge: 'Deep Reasoning (~20 Free RPD)',
+    description: 'Google’s deep multimodal reasoning flash model. Free tier capped at ~20 requests/day by Google.',
   },
   {
     id: 'gemini-3.7-flash',

@@ -914,6 +914,10 @@ const App: React.FC = () => {
             const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
             
             const isResourceExhausted = errorMessage.includes('RESOURCE_EXHAUSTED');
+            const isExplicitDailyQuota = isResourceExhausted && (
+              errorMessage.toLowerCase().includes('per day') ||
+              errorMessage.toLowerCase().includes('daily')
+            );
             const isServiceUnavailable = errorMessage.includes('503') || 
                                          errorMessage.includes('UNAVAILABLE') || 
                                          errorMessage.includes('high demand') ||
@@ -922,8 +926,8 @@ const App: React.FC = () => {
                                 errorMessage.includes('quota') || 
                                 isResourceExhausted;
 
-            const shouldRetry = (isRateLimit && !isResourceExhausted) || isServiceUnavailable;
-            const effectiveMaxRetries = isResourceExhausted ? 0 : MAX_RETRIES;
+            const shouldRetry = (isRateLimit && !isExplicitDailyQuota) || isServiceUnavailable;
+            const effectiveMaxRetries = isExplicitDailyQuota ? 0 : MAX_RETRIES;
 
             if (shouldRetry && retryCount < effectiveMaxRetries) {
                 retryCount++;
