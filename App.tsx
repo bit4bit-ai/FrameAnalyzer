@@ -925,15 +925,31 @@ const App: React.FC = () => {
                                          errorMessage.includes('high demand') ||
                                          errorMessage.includes('overloaded');
 
-            // --- AUTO-SWITCH CASCADE ON QUOTA EXHAUSTION OR HIGH DEMAND ---
-            if (isResourceExhausted || (isServiceUnavailable && retryCount >= 1)) {
+            // --- 1. PATIENT RETRY FOR TEMPORARY HIGH DEMAND (503) ---
+            if (isServiceUnavailable && retryCount < MAX_RETRIES) {
+              retryCount++;
+              const delayMs = 5000 * retryCount; // 5s, 10s, 15s (30s total backoff patience)
+              lastApiCallTime = Date.now();
+
+              for (let s = Math.ceil(delayMs / 1000); s > 0; s--) {
+                if (shouldStopRef.current) break;
+                setStatusMessage(`Google high demand on ${activeModel} (503). Retrying in ${s}s (Attempt ${retryCount}/${MAX_RETRIES})...`);
+                await new Promise(r => setTimeout(r, 1000));
+              }
+              continue;
+            }
+
+            // --- 2. AUTO-SWITCH CASCADE ON QUOTA EXHAUSTION OR PERSISTENT HIGH DEMAND ---
+            if (isResourceExhausted || (isServiceUnavailable && retryCount >= MAX_RETRIES)) {
               if (isResourceExhausted) {
                 markModelExhaustedToday(activeModel);
               }
               const nextModel = getNextCascadeModel(activeModel);
 
               if (nextModel) {
-                const reason = isResourceExhausted ? "Daily quota reached" : "Google high demand (503)";
+                const reason = isResourceExhausted 
+                  ? "Daily quota reached" 
+                  : "Persistent high demand (after 3 retries)";
                 console.warn(`[Auto-Switch Cascade] ${reason} on ${activeModel}. Auto-switching to ${nextModel}...`);
                 setStatusMessage(`${reason} on ${activeModel}. Auto-switching to ${nextModel}...`);
                 activeModel = nextModel;
@@ -943,6 +959,7 @@ const App: React.FC = () => {
               }
             }
 
+            // --- 3. FALLBACK FOR TRANSIENT RATE LIMITS (IF NO FURTHER CASCADE TIER) ---
             const isExplicitDailyQuota = isResourceExhausted && (
               errorMessage.toLowerCase().includes('per day') ||
               errorMessage.toLowerCase().includes('daily')
@@ -951,34 +968,28 @@ const App: React.FC = () => {
                                 errorMessage.includes('quota') || 
                                 isResourceExhausted;
 
-            const shouldRetry = (isRateLimit && !isExplicitDailyQuota) || isServiceUnavailable;
-            const effectiveMaxRetries = isExplicitDailyQuota ? 0 : MAX_RETRIES;
+            const shouldRetryRateLimit = isRateLimit && !isExplicitDailyQuota && retryCount < MAX_RETRIES;
 
-            if (shouldRetry && retryCount < effectiveMaxRetries) {
-                retryCount++;
-                const delayMs = isServiceUnavailable 
-                  ? 4000 * retryCount // 4s, 8s, 12s for temporary 503 high-demand spikes
-                  : 60000 * Math.pow(2, retryCount - 1);
-                lastApiCallTime = Date.now(); 
+            if (shouldRetryRateLimit) {
+              retryCount++;
+              const delayMs = 60000 * Math.pow(2, retryCount - 1);
+              lastApiCallTime = Date.now();
 
-                for (let s = Math.ceil(delayMs / 1000); s > 0; s--) {
-                    if (shouldStopRef.current) break;
-                    setStatusMessage(isServiceUnavailable
-                      ? `Google high demand (503). Retrying in ${s}s (Attempt ${retryCount}/${MAX_RETRIES})...`
-                      : `Quota hit (429). Retrying in ${s}s...`
-                    );
-                    await new Promise(r => setTimeout(r, 1000));
-                }
+              for (let s = Math.ceil(delayMs / 1000); s > 0; s--) {
+                if (shouldStopRef.current) break;
+                setStatusMessage(`Rate limit hit (429). Retrying in ${s}s...`);
+                await new Promise(r => setTimeout(r, 1000));
+              }
             } else {
-                updateStatus(ProcessingStatus.ERROR, { 
-                  error: isResourceExhausted ? "Quota Exceeded (Stopped)" : errorMessage
-                });
-                isVideoComplete = true;
+              updateStatus(ProcessingStatus.ERROR, { 
+                error: isResourceExhausted ? "Quota Exceeded (Stopped)" : errorMessage
+              });
+              isVideoComplete = true;
 
-                if (isRateLimit) {
-                    abortDueToQuota = true;
-                    shouldStopRef.current = true;
-                }
+              if (isRateLimit) {
+                abortDueToQuota = true;
+                shouldStopRef.current = true;
+              }
             }
           }
       } // End retry loop
