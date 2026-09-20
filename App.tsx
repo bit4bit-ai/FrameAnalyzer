@@ -7,6 +7,7 @@ import {
   scanFilesFromInput, 
   saveAnalysisToDisk, 
   packageAllVideosZip,
+  packageGroupVideosZip,
   downloadSingleVideoZip 
 } from './services/fileSystem';
 import { 
@@ -92,6 +93,7 @@ const App: React.FC = () => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [downloadingGroupId, setDownloadingGroupId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [directoryName, setDirectoryName] = useState<string | null>(null);
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | undefined>(undefined);
@@ -709,6 +711,26 @@ const App: React.FC = () => {
       await showAlert("Export Error", error.message || "Failed to create ZIP file.");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleDownloadGroup = async (group: { groupId: string; displayName: string; videos: VideoFile[] }) => {
+    const completedVideos = group.videos.filter(v => v.status === ProcessingStatus.COMPLETED && v.analysisResult);
+    if (completedVideos.length === 0) {
+      await showAlert("Nothing to Download", "There are no completed video analyses in this group yet.");
+      return;
+    }
+
+    setDownloadingGroupId(group.groupId);
+    try {
+      await packageGroupVideosZip(group.displayName, group.videos);
+      setStatusMessage(`Downloaded ${group.displayName} archive!`);
+      setTimeout(() => setStatusMessage(""), 3000);
+    } catch (error: any) {
+      console.error("Group download failed:", error);
+      await showAlert("Download Error", error.message || "Failed to create group ZIP file.");
+    } finally {
+      setDownloadingGroupId(null);
     }
   };
 
@@ -1985,6 +2007,31 @@ const App: React.FC = () => {
                           </span>
                         )}
                       </div>
+
+                      {/* Download Group Button */}
+                      {group.completed > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadGroup(group);
+                          }}
+                          disabled={downloadingGroupId === group.groupId}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-950/60 hover:bg-blue-900/80 border border-blue-700/60 text-blue-200 transition-colors cursor-pointer disabled:opacity-50"
+                          title={`Download ZIP containing analysis and keyframes for all ${group.completed} completed videos in this group`}
+                        >
+                          {downloadingGroupId === group.groupId ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                              <span className="hidden sm:inline">Packaging...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="hidden sm:inline">Download Group</span>
+                            </>
+                          )}
+                        </button>
+                      )}
 
                       {/* Run / Retry Group Button */}
                       {(() => {

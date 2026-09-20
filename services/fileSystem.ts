@@ -321,6 +321,41 @@ export const packageAllVideosZip = async (videos: VideoFile[]) => {
 };
 
 /**
+ * Package a specific folder group's completed videos into a ZIP file and trigger browser download
+ */
+export const packageGroupVideosZip = async (groupName: string, videos: VideoFile[]) => {
+  const zip = new JSZip();
+  const completedVideos = videos.filter(v => v.status === ProcessingStatus.COMPLETED && v.analysisResult);
+  if (completedVideos.length === 0) throw new Error("No completed video analyses in this group to download.");
+
+  // Clean group name for filename
+  const cleanGroupName = (groupName || 'Group').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  for (const video of completedVideos) {
+    const folderName = video.name.replace(/\.[^/.]+$/, "");
+    const folder = zip.folder(folderName);
+    if (folder) {
+      if (video.analysisResult) folder.file("analysis.txt", video.analysisResult);
+      const names = ['first_frame.jpg', 'middle_frame.jpg', 'last_frame.jpg'];
+      video.screenshots.forEach((dataUrl, i) => {
+        const cleanData = dataUrl.split(',')[1];
+        if (cleanData) folder.file(names[i] || `frame_${i}.jpg`, cleanData, { base64: true });
+      });
+    }
+  }
+
+  const content = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${cleanGroupName}_analysis.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+};
+
+/**
  * Download a single video's analysis results as a ZIP containing analysis.txt and 3 keyframes
  */
 export const downloadSingleVideoZip = async (video: VideoFile): Promise<void> => {
