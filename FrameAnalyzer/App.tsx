@@ -925,14 +925,17 @@ const App: React.FC = () => {
                                          errorMessage.includes('high demand') ||
                                          errorMessage.includes('overloaded');
 
-            // --- AUTO-SWITCH CASCADE ON QUOTA EXHAUSTION ---
+            // --- AUTO-SWITCH CASCADE ON QUOTA EXHAUSTION OR HIGH DEMAND ---
             if (isResourceExhausted || (isServiceUnavailable && retryCount >= 1)) {
-              markModelExhaustedToday(activeModel);
+              if (isResourceExhausted) {
+                markModelExhaustedToday(activeModel);
+              }
               const nextModel = getNextCascadeModel(activeModel);
 
               if (nextModel) {
-                console.warn(`[Auto-Switch Cascade] Quota reached for ${activeModel}. Auto-switching to ${nextModel}...`);
-                setStatusMessage(`Quota reached on ${activeModel}. Auto-switching to ${nextModel}...`);
+                const reason = isResourceExhausted ? "Daily quota reached" : "Google high demand (503)";
+                console.warn(`[Auto-Switch Cascade] ${reason} on ${activeModel}. Auto-switching to ${nextModel}...`);
+                setStatusMessage(`${reason} on ${activeModel}. Auto-switching to ${nextModel}...`);
                 activeModel = nextModel;
                 retryCount = 0;
                 await new Promise(r => setTimeout(r, 1200));
