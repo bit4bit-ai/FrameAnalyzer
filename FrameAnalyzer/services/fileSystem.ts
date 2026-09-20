@@ -321,6 +321,54 @@ export const packageAllVideosZip = async (videos: VideoFile[]) => {
 };
 
 /**
+ * Download a single video's analysis results as a ZIP containing analysis.txt and 3 keyframes
+ */
+export const downloadSingleVideoZip = async (video: VideoFile): Promise<void> => {
+  if (!video.analysisResult) throw new Error("No analysis result to download.");
+  const zip = new JSZip();
+  const folderName = video.name.replace(/\.[^/.]+$/, "");
+
+  // 1. Add analysis.txt
+  zip.file("analysis.txt", video.analysisResult);
+
+  // 2. Add extracted keyframes
+  const names = ['first_frame.jpg', 'middle_frame.jpg', 'last_frame.jpg'];
+  video.screenshots.forEach((dataUrl, i) => {
+    const cleanData = dataUrl.split(',')[1];
+    if (cleanData) {
+      zip.file(names[i] || `frame_${i}.jpg`, cleanData, { base64: true });
+    }
+  });
+
+  const content = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${folderName}_analysis.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+};
+
+/**
+ * Download a single video's analysis results as a plain text file (.txt)
+ */
+export const downloadAnalysisText = (video: VideoFile): void => {
+  if (!video.analysisResult) return;
+  const folderName = video.name.replace(/\.[^/.]+$/, "");
+  const blob = new Blob([video.analysisResult], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${folderName}_analysis.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+};
+
+/**
  * Extract a quick, lightweight first frame thumbnail from a video file
  */
 export const extractFirstFrameThumbnail = async (file: File): Promise<string> => {

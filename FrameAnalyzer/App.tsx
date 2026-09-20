@@ -6,7 +6,8 @@ import {
   saveFramesToDisk, 
   scanFilesFromInput, 
   saveAnalysisToDisk, 
-  packageAllVideosZip 
+  packageAllVideosZip,
+  downloadSingleVideoZip 
 } from './services/fileSystem';
 import { 
   generateVideoAnalysis, 
@@ -672,18 +673,22 @@ const App: React.FC = () => {
   };
 
   const handleManualSave = async (video: VideoFile): Promise<void> => {
-    if (!video.parentHandle || !video.analysisResult) {
-       console.error("Missing parent handle or analysis result");
+    if (!video.analysisResult) {
+       console.error("Missing analysis result");
        return;
     }
     
     try {
-      await saveAnalysisToDisk(
-        video.parentHandle, 
-        video.name, 
-        video.screenshots, 
-        video.analysisResult
-      );
+      if (video.parentHandle) {
+        await saveAnalysisToDisk(
+          video.parentHandle, 
+          video.name, 
+          video.screenshots, 
+          video.analysisResult
+        );
+      } else {
+        await downloadSingleVideoZip(video);
+      }
     } catch (error) {
       console.error("Failed to save:", error);
       throw error;
@@ -1999,7 +2004,7 @@ const App: React.FC = () => {
                         <VideoCard 
                           key={video.id} 
                           video={video} 
-                          onSave={!isFallbackMode ? handleManualSave : undefined}
+                          onSave={handleManualSave}
                           onRetry={handleRetryVideo}
                         />
                       ))}
