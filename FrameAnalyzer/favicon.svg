@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="playGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  
+  <!-- Outer Rounded App Icon -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bgGrad)" filter="url(#glow)"/>
+  
+  <!-- Film Strip Sprocket Holes -->
+  <rect x="8" y="7" width="6" height="5" rx="1.5" fill="#ffffff" fill-opacity="0.35"/>
+  <rect x="20" y="7" width="6" height="5" rx="1.5" fill="#ffffff" fill-opacity="0.35"/>
+  <rect x="32" y="7" width="6" height="5" rx="1.5" fill="#ffffff" fill-opacity="0.35"/>
+  <rect x="44" y="7" width="6" height="5" rx="1.5" fill="#ffffff" fill-opacity="0.35"/>
+
+  <!-- Viewfinder Frame Screen -->
+  <rect x="8" y="16" width="48" height="34" rx="6" fill="#0f172a" fill-opacity="0.88" stroke="#818cf8" stroke-width="1.5"/>
+
+  <!-- Video Play / AI Scanner Glyph -->
+  <path d="M26 23.5L42 33L26 42.5V23.5Z" fill="url(#playGrad)"/>
+  <circle cx="42" cy="33" r="2.5" fill="#38bdf8"/>
+
+  <!-- 3 Temporal Extracted Keyframe Markers -->
+  <rect x="14" y="54" width="8" height="4" rx="1.5" fill="#38bdf8"/>
+  <rect x="28" y="54" width="8" height="4" rx="1.5" fill="#a855f7"/>
+  <rect x="42" y="54" width="8" height="4" rx="1.5" fill="#34d399"/>
+</svg>
