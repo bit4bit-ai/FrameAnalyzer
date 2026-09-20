@@ -37,6 +37,7 @@ import {
   saveJobSession, 
   loadJobSession, 
   clearJobSession, 
+  saveVideoModelUsed,
   verifyDirectoryPermission, 
   requestDirectoryPermission 
 } from './services/jobPersistence';
@@ -885,6 +886,7 @@ const App: React.FC = () => {
             // Success!
             processedDescriptions.push(analysis);
             lastApiCallTime = Date.now();
+            saveVideoModelUsed(currentVideo.id, activeModel);
             updateStatus(ProcessingStatus.COMPLETED, { 
               analysisResult: analysis,
               usage: usage,
