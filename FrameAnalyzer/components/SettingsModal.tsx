@@ -12,22 +12,22 @@ interface SettingsModalProps {
 
 const AVAILABLE_MODELS = [
   {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    badge: 'Default: Recommended',
+    description: 'Foundational multimodal performance, high quality video descriptions and high-throughput stock footage reasoning.',
+  },
+  {
     id: 'gemini-3.6-flash',
     name: 'Gemini 3.6 Flash',
-    badge: 'Recommended: Best Quality',
-    description: 'Google’s officially recommended model. Rich, detailed stock footage descriptions with deep multimodal reasoning.',
+    badge: 'Deep Multimodal Reasoning',
+    description: 'Google’s latest flash model with deep multimodal reasoning and rich description capabilities.',
   },
   {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
     badge: 'High-Volume Free (1,500 RPD)',
     description: 'Ultra-fast with 1,500 free requests/day, but produces simpler, more concise descriptions.',
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    badge: 'Balanced & High-Speed',
-    description: 'Foundational multimodal performance across routine, high-throughput stock footage reasoning (subject to temporary 503 load spikes).',
   },
   {
     id: 'gemini-3.7-flash',
@@ -45,7 +45,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
 }) => {
   const [apiKey, setApiKey] = useState(initialApiKey);
-  const [model, setModel] = useState(initialModel || 'gemini-3.6-flash');
+  const [model, setModel] = useState(initialModel || 'gemini-3.5-flash');
   const [showKey, setShowKey] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -54,7 +54,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     setApiKey(initialApiKey);
-    setModel(initialModel || 'gemini-3.6-flash');
+    setModel(initialModel || 'gemini-3.5-flash');
     setTestResult(null);
     setSaveSuccess(false);
   }, [initialApiKey, initialModel, isOpen]);

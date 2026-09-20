@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 const API_KEY_STORAGE_KEY = 'frame_analyzer_gemini_api_key';
 const MODEL_STORAGE_KEY = 'frame_analyzer_gemini_model';
 
-export const DEFAULT_MODEL = 'gemini-3.6-flash';
+export const DEFAULT_MODEL = 'gemini-3.5-flash';
 
 export interface AppSettings {
   apiKey: string;
