@@ -73,34 +73,38 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   const [notification, setNotification] = useState<{ type: 'success' | 'warning' | 'info'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Local editable copy of database keywords to allow deletions before saving
-  const [editableDbKeywords, setEditableDbKeywords] = useState<string[]>(dbKeywords);
+  // Track pending keyword deletions from the database before saving
+  const [pendingDeletedKeywords, setPendingDeletedKeywords] = useState<string[]>([]);
 
-  // Detect whether keywords have been deleted compared to the saved database
-  const deletedDbKeywordsCount = useMemo(() => {
-    return Math.max(0, dbKeywords.length - editableDbKeywords.length);
-  }, [dbKeywords.length, editableDbKeywords.length]);
+  // Active database keywords with pending deletions filtered out
+  const activeDbKeywords = useMemo(() => {
+    if (pendingDeletedKeywords.length === 0) return dbKeywords;
+    const deletedSet = new Set(pendingDeletedKeywords.map(k => k.toLowerCase()));
+    return dbKeywords.filter(k => !deletedSet.has(k.toLowerCase()));
+  }, [dbKeywords, pendingDeletedKeywords]);
 
+  const deletedDbKeywordsCount = pendingDeletedKeywords.length;
   const hasDbChanges = deletedDbKeywordsCount > 0;
 
-  // Sync with dbKeywords from props when no unsaved deletions exist
+  // Prune any pending deletions that are no longer in dbKeywords if dbKeywords changes externally
   useEffect(() => {
-    if (!hasDbChanges) {
-      setEditableDbKeywords(dbKeywords);
+    if (pendingDeletedKeywords.length > 0) {
+      const dbSet = new Set(dbKeywords.map(k => k.toLowerCase()));
+      setPendingDeletedKeywords(prev => prev.filter(k => dbSet.has(k.toLowerCase())));
     }
-  }, [dbKeywords, hasDbChanges]);
+  }, [dbKeywords]);
 
-  // All known keywords (staged + database) to prevent exact duplicates
+  // All known keywords (staged + active database) to prevent exact duplicates
   const allExistingKeywords = useMemo(() => {
-    return [...editableDbKeywords, ...stagedKeywords];
-  }, [editableDbKeywords, stagedKeywords]);
+    return [...activeDbKeywords, ...stagedKeywords];
+  }, [activeDbKeywords, stagedKeywords]);
 
   // Database search filter for viewer
   const filteredDbKeywords = useMemo(() => {
-    if (!dbSearchQuery.trim()) return editableDbKeywords;
+    if (!dbSearchQuery.trim()) return activeDbKeywords;
     const q = dbSearchQuery.toLowerCase().trim();
-    return editableDbKeywords.filter(k => k.toLowerCase().includes(q));
-  }, [editableDbKeywords, dbSearchQuery]);
+    return activeDbKeywords.filter(k => k.toLowerCase().includes(q));
+  }, [activeDbKeywords, dbSearchQuery]);
 
   const displayedDbKeywords = useMemo(() => {
     return filteredDbKeywords.slice(0, visibleDbCount);
@@ -190,8 +194,9 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
     if (toUpload.length === 0) return;
 
     try {
-      const mergedDb = [...editableDbKeywords, ...toUpload];
+      const mergedDb = [...activeDbKeywords, ...toUpload];
       await onSaveToDb(mergedDb);
+      setPendingDeletedKeywords([]);
 
       // IMMEDIATELY CLEAR STAGING AREA AND TEXT FIELD
       const countUploaded = toUpload.length;
@@ -217,11 +222,15 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
   };
 
   const handleDeleteDbKeyword = (keywordToDelete: string) => {
-    setEditableDbKeywords(prev => prev.filter(k => k.toLowerCase() !== keywordToDelete.toLowerCase()));
+    const targetLower = keywordToDelete.toLowerCase();
+    setPendingDeletedKeywords(prev => {
+      if (prev.some(k => k.toLowerCase() === targetLower)) return prev;
+      return [...prev, keywordToDelete];
+    });
   };
 
   const handleRevertDbChanges = () => {
-    setEditableDbKeywords(dbKeywords);
+    setPendingDeletedKeywords([]);
     setNotification({
       type: 'info',
       message: 'Pending database deletions have been discarded.'
@@ -230,12 +239,14 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
 
   const handleSaveDbDeletions = async () => {
     if (!hasDbChanges || isSaving) return;
+    const count = deletedDbKeywordsCount;
 
     try {
-      await onSaveToDb(editableDbKeywords);
+      await onSaveToDb(activeDbKeywords);
+      setPendingDeletedKeywords([]);
       setNotification({
         type: 'success',
-        message: `✓ Successfully saved changes to database. Removed ${deletedDbKeywordsCount.toLocaleString()} keyword(s).`
+        message: `✓ Successfully saved changes to database. Removed ${count.toLocaleString()} keyword(s).`
       });
     } catch (err: any) {
       setNotification({
@@ -537,7 +548,7 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-emerald-400" />
           <span className="text-xs text-slate-300">
-            Database Status: <strong className="text-emerald-400 font-mono">{editableDbKeywords.length.toLocaleString()} keywords</strong> saved in <code className="text-purple-300 text-[11px]">keywords.json</code>
+            Database Status: <strong className="text-emerald-400 font-mono">{activeDbKeywords.length.toLocaleString()} keywords</strong> saved in <code className="text-purple-300 text-[11px]">keywords.json</code>
             {hasDbChanges && (
               <span className="text-amber-400 ml-1 font-semibold">({deletedDbKeywordsCount} unsaved deletion{deletedDbKeywordsCount > 1 ? 's' : ''})</span>
             )}
@@ -547,8 +558,8 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportKeywordsToFile(editableDbKeywords)}
-            disabled={editableDbKeywords.length === 0}
+            onClick={() => exportKeywordsToFile(activeDbKeywords)}
+            disabled={activeDbKeywords.length === 0}
             className="flex items-center gap-1.5 px-2.5 py-1 text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors disabled:opacity-40 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -567,7 +578,7 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
             }`}
           >
             {showDbViewer ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {showDbViewer ? 'Hide DB List' : `View DB (${editableDbKeywords.length.toLocaleString()})`}
+            {showDbViewer ? 'Hide DB List' : `View DB (${activeDbKeywords.length.toLocaleString()})`}
           </button>
         </div>
       </div>
@@ -579,7 +590,7 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                 <Database className="w-3.5 h-3.5 text-emerald-400" />
-                Keywords in Database ({editableDbKeywords.length.toLocaleString()}):
+                Keywords in Database ({activeDbKeywords.length.toLocaleString()}):
               </span>
               {hasDbChanges && (
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-950/70 border border-amber-600/50 text-amber-300 font-mono">
@@ -630,7 +641,7 @@ const KeywordManager: React.FC<KeywordManagerProps> = ({
                 disabled={!hasDbChanges || isSaving}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm shrink-0 ${
                   hasDbChanges
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400 cursor-pointer active:scale-95 animate-pulse'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400 cursor-pointer active:scale-95'
                     : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-60'
                 }`}
                 title={hasDbChanges ? `Save deletions to database (${deletedDbKeywordsCount} deleted)` : 'No deletions to save (delete a keyword to activate)'}
