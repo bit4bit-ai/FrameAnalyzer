@@ -12,6 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
           lfs: true
 
@@ -19,4 +20,13 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force https://bit-4-bit:$HF_TOKEN@huggingface.co/spaces/bit-4-bit/FrameAnalyzer main
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN secret is empty or not set in GitHub repository secrets!"
+            exit 1
+          fi
+
+          git config --global user.email "bot@github.com"
+          git config --global user.name "GitHub Action"
+
+          git push --force https://bit-4-bit:${HF_TOKEN}@huggingface.co/spaces/bit-4-bit/FrameAnalyzer HEAD:refs/heads/main
+
