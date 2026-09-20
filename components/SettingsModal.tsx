@@ -30,12 +30,6 @@ const AVAILABLE_MODELS = [
     description: 'Foundational multimodal performance across routine, high-throughput stock footage reasoning (subject to temporary 503 load spikes).',
   },
   {
-    id: 'gemini-3.6-flash',
-    name: 'Gemini 3.6 Flash',
-    badge: 'Deep Reasoning (~20 Free RPD)',
-    description: 'Deep intelligence flash model. Note: Free tier is strictly capped at ~20 requests/day by Google.',
-  },
-  {
     id: 'gemini-3.7-flash',
     name: 'Gemini 3.7 Flash',
     badge: 'Thinking Model',
