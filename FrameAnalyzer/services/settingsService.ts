@@ -25,7 +25,7 @@ export const getActiveApiKey = (): string => {
  */
 export const getActiveModel = (): string => {
   const local = localStorage.getItem(MODEL_STORAGE_KEY);
-  if (local && local.trim()) return local.trim();
+  if (local && local.trim() && local !== 'gemini-3.5-flash') return local.trim();
   return DEFAULT_MODEL;
 };
 
@@ -35,6 +35,12 @@ export const getActiveModel = (): string => {
 export const loadSettings = async (): Promise<AppSettings> => {
   let apiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
   let model = localStorage.getItem(MODEL_STORAGE_KEY) || DEFAULT_MODEL;
+
+  // Auto-upgrade legacy single-model preference to the new smart cascade
+  if (!localStorage.getItem(MODEL_STORAGE_KEY) || model === 'gemini-3.5-flash') {
+    model = DEFAULT_MODEL;
+    localStorage.setItem(MODEL_STORAGE_KEY, model);
+  }
 
   try {
     const res = await fetch('/api/settings');

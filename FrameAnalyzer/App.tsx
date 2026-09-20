@@ -718,7 +718,10 @@ const App: React.FC = () => {
     shouldStopRef.current = false;
     setIsProcessing(true);
     isProcessingRef.current = true;
-    setStatusMessage("Starting analysis...");
+    const startingModel = settingsRef.current.model === 'auto-cascade'
+      ? getEffectiveCascadeModel()
+      : settingsRef.current.model;
+    setStatusMessage(`Starting analysis (${startingModel})...`);
     setShowAbortModal(false);
 
     let queueIds: string[] = [];
